@@ -6,11 +6,13 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createStarterManifest } from "../../lib/manifest/starter";
 import type { InputDefinition, Manifest, Question } from "../../lib/manifest/types";
 import { parseManifest, ManifestValidationError } from "../../lib/manifest/validate";
+import { generateExport, type ExportFormat } from "../../lib/export/generate";
 import { CredentialDialog } from "../credentials/credential-dialog";
 import { AiBuilderPanel } from "./ai-builder-panel";
 import { InputEditor } from "./input-editor";
 import { QuestionEditor } from "./question-editor";
 import { RunPanel } from "./run-panel";
+import { TestSuitePanel } from "./test-suite-panel";
 
 const DRAFT_KEY = "jev-interface-local-draft";
 const SESSION_KEY = "jev-typesafe-session-key";
@@ -182,14 +184,15 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
       router.refresh();
     } catch (error) { setStatus(issueMessage(error)); }
   }
-  function exportManifest() {
+  function exportManifest(format: ExportFormat = "manifest") {
     try {
       const value = currentManifest();
-      const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+      const exported = generateExport(value, format);
+      const blob = new Blob([exported.content], { type: exported.contentType });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${value.metadata.slug}.manifest.json`;
+      link.download = exported.filename;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
       setStatus("Manifest 已导出");
@@ -232,7 +235,12 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
           <Link className="button button-small" href={`/me/interfaces/${activeCloudId}`}>版本历史</Link></>}
         <button className="button button-small" type="button" onClick={() => importInput.current?.click()}>导入</button>
         <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importManifest} />
-        <button className="button button-small" type="button" onClick={exportManifest}>导出 JSON</button>
+        <button className="button button-small" type="button" onClick={() => exportManifest("manifest")}>导出 JSON</button>
+        <details className="export-menu"><summary className="button button-small">代码导出</summary><div>
+          <button className="button button-small" type="button" onClick={() => exportManifest("python")}>Python</button>
+          <button className="button button-small" type="button" onClick={() => exportManifest("typescript")}>TypeScript</button>
+          <button className="button button-small" type="button" onClick={() => exportManifest("curl")}>cURL</button>
+        </div></details>
         {canCloudSave && <button className="button button-small" type="button" onClick={() => setAiOpen(!aiOpen)}>AI Builder</button>}
         <button className="button button-small" type="button" onClick={() => { try { setRawText(JSON.stringify({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown }, null, 2)); } catch { setRawText(JSON.stringify(manifest, null, 2)); } setRawOpen(!rawOpen); }}>Raw Manifest</button>
       </div>
@@ -277,7 +285,8 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
           onAdvancedSave={(value) => applyAdvancedQuestion(id, value)} onDuplicate={() => duplicateQuestion(id)} onRemove={() => removeQuestion(id)} onMove={(direction) => moveQuestion(id, direction)}
           onDragStart={() => { dragged.current = id; }} onDrop={() => { if (dragged.current) reorderQuestion(dragged.current, id); dragged.current = null; }} />)}
       </div>
-      <div className={`workspace-panel ${tab === "test" ? "active" : ""}`}><RunPanel manifest={manifest} stateText={stateText} apiKey={apiKey} onOpenKey={() => setKeyOpen(true)} /></div>
+      <div className={`workspace-panel ${tab === "test" ? "active" : ""}`}><RunPanel manifest={manifest} stateText={stateText} apiKey={apiKey} onOpenKey={() => setKeyOpen(true)} />
+        <div className="divider" /><TestSuitePanel manifest={manifest} stateText={stateText} apiKey={apiKey} onOpenKey={() => setKeyOpen(true)} onChange={(examples) => setManifest((current) => ({ ...current, examples }))} /></div>
     </div>
     <div className="status-line" role="status" aria-live="polite">{status}</div>
     <CredentialDialog open={keyOpen} onClose={() => setKeyOpen(false)} apiKey={apiKey} onKeyChange={changeKey} rememberSession={remember} onRememberChange={changeRemember} onClear={clearKey} />

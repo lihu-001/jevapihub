@@ -31,3 +31,5 @@ npm run build
 游客可打开 `/builder/new` 或 `/playground` 创建并运行 Manifest，也可在本机保存、导入和导出 JSON。登录用户可在 `/me/interfaces` 管理云端 Draft、发布不可变版本和查看历史。`POST /api/runtime/playground` 将请求转给固定的 TypeSafe System One 端点；Saved Runtime 从数据库加载版本 Manifest，只接受 `inputs`。TypeSafe API Key 默认只留在页面内存；勾选会话记住后才写入 `sessionStorage`。数据库没有 Key、state 或 raw answer 字段。
 
 公共 Hub 位于 `/hub`。公开版本支持搜索、筛选、排序、试运行和 Star；登录用户可以 Fork 指定版本到自己的 Draft。Unlisted 版本可通过详情链接访问，但不会进入公共搜索；Private 版本只有作者可访问。管理员可在详情页设置 Featured。保存版本的成功运行只记录版本 ID、模型、token 数与耗时等元数据，用于运行次数统计。
+
+Builder 可导出 Manifest JSON、Python、TypeScript 和 cURL 模板。代码模板固定调用 TypeSafe System One，并从 `TYPESAFE_API_KEY` 环境变量读取用户自己的 Key。`examples` 可附带测试输入与期望值，在 Builder 中运行测试集；测试结果只显示于浏览器当前页面。作者可在 Interface 版本历史页查看总运行、成功/失败、耗时、token 和最近 30 天的统计。

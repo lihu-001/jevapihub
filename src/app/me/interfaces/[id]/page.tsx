@@ -18,6 +18,7 @@ export default async function InterfaceHistoryPage({ params }: { params: Promise
       <span className="eyebrow">VERSION HISTORY</span><h1>{project.interface.name}</h1>
       <p className="muted">Draft 可继续编辑；已发布的每个版本都是独立快照。</p>
       <Link className="button button-primary" href={`/builder/${id}`}>编辑 Draft</Link>
+      <Link className="button" href={`/me/interfaces/${id}/stats`}>查看运行统计</Link>
       <div className="project-list">{versions.map((version) => <article className="project-row" key={version.id}>
         <div><h2>v{version.versionNumber}</h2><small className="muted">{version.publishedAt.toLocaleString("zh-CN")}</small></div>
         <Link className="button button-small" href={`/me/interfaces/${id}/versions/${version.id}`}>查看并运行</Link>

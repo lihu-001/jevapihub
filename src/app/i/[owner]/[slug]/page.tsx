@@ -35,6 +35,8 @@ export default async function HubDetailPage({ params }: { params: Promise<{ owne
     <section id="manifest"><h2>Manifest</h2><details><summary>查看完整 JSON</summary><pre className="hub-json">{JSON.stringify(manifest, null, 2)}</pre></details></section>
     <section id="versions"><h2>Versions</h2><ul>{versions.sort((a, b) => b.versionNumber - a.versionNumber).map((version) => <li key={version.id}>v{version.versionNumber}{version.id === detail.version.id ? " · 当前发布" : ""}</li>)}</ul></section>
     <section id="examples"><h2>Examples</h2>{manifest.examples?.length ? <pre className="hub-json">{JSON.stringify(manifest.examples, null, 2)}</pre> : <p>暂无示例。</p>}</section>
-    <section id="download"><h2>Download</h2><p>可在 Builder 中导入下面的 Manifest JSON；代码导出将在 Phase 5 提供。</p><pre className="hub-json">{JSON.stringify(manifest, null, 2)}</pre></section>
+    <section id="download"><h2>Download</h2><div className="hub-actions">
+      {(["manifest", "python", "typescript", "curl"] as const).map((format) => <a className="button" key={format} href={`/api/interfaces/${detail.interface.id}/versions/${detail.version.id}/export/${format}`}>{format === "manifest" ? "Manifest JSON" : format === "typescript" ? "TypeScript" : format === "python" ? "Python" : "cURL"}</a>)}
+    </div></section>
   </main>;
 }

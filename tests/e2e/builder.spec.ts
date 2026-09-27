@@ -98,3 +98,32 @@ test("本机草稿可恢复，勾选后 Key 只留在浏览器会话", async ({ 
   await expect(page.getByRole("button", { name: "TypeSafe · 已设置" })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("jev-typesafe-session-key"))).toBeNull();
 });
+
+test("游客可运行测试集并导出不含 Key 的 Python 模板", async ({ page }) => {
+  await page.route("**/api/runtime/playground", async (route) => {
+    const body = route.request().postDataJSON() as { inputs: Record<string, string> };
+    expect(body.inputs).toEqual({ content: "测试内容" });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+      result: { model: "jev-1.13.0", answers: { assessment: { type: "noul", noul: 0.83 } }, usage: { input_tokens: 4, output_tokens: 1 } }, metrics: [],
+    }) });
+  });
+  await page.goto("/builder/new");
+  if (page.viewportSize()?.width && page.viewportSize()!.width < 900) await page.getByRole("button", { name: "Test / Result" }).click();
+  await page.getByRole("button", { name: "＋ 添加用例" }).click();
+  await page.getByText("测试用例 1", { exact: true }).click();
+  await page.getByRole("textbox", { name: "Inputs JSON" }).fill('{"content":"测试内容"}');
+  await page.getByRole("textbox", { name: "期望值 JSON" }).fill('{"assessment.noul":{"min":0.8}}');
+  await page.getByRole("button", { name: "保存用例" }).click();
+  await page.getByRole("button", { name: "TypeSafe · 未设置" }).click();
+  await page.getByLabel("你的 API Key").fill("TEST_SECRET_TYPESAFE_KEY_DO_NOT_STORE_123456");
+  await page.getByRole("button", { name: "完成" }).click();
+  await page.getByRole("button", { name: "Run Test Suite" }).click();
+  await expect(page.getByText("Passed 1 / 1")).toBeVisible();
+  await page.getByText("代码导出", { exact: true }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Python", exact: true }).click();
+  const download = await downloadPromise;
+  const output = await (await import("node:fs/promises")).readFile(await download.path(), "utf8");
+  expect(output).toContain("TYPESAFE_API_KEY");
+  expect(output).not.toContain("TEST_SECRET_TYPESAFE_KEY_DO_NOT_STORE_123456");
+});

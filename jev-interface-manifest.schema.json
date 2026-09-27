@@ -186,6 +186,17 @@
           "notes": {
             "type": "string",
             "maxLength": 2000
+          },
+          "expectations": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true },
+                { "type": "object", "additionalProperties": false, "minProperties": 1,
+                  "properties": { "min": { "type": "number" }, "max": { "type": "number" } } }
+              ]
+            }
           }
         }
       },

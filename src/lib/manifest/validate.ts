@@ -81,6 +81,32 @@ export function parseManifest(value: unknown): Manifest {
       }
     }
   }
+  for (const example of manifest.examples ?? []) {
+    for (const [key, expectation] of Object.entries(example.expectations ?? {})) {
+      const separator = key.lastIndexOf(".");
+      const questionId = key.slice(0, separator);
+      const field = key.slice(separator + 1);
+      const question = manifest.questions[questionId];
+      if (!question || question.type !== field) { issues.push(`Invalid test expectation target: ${key}`); continue; }
+      if (field === "choice" && question.type === "choice") {
+        const options = Array.isArray(expectation) ? expectation : [expectation];
+        if (options.some((option) => typeof option !== "string" || !Object.hasOwn(question.criteria, option))) {
+          issues.push(`Invalid choice expectation: ${key}`);
+        }
+      } else {
+        if (!expectation || typeof expectation !== "object" || Array.isArray(expectation)) {
+          issues.push(`Numeric expectation requires min or max: ${key}`);
+        } else if (expectation.min !== undefined && expectation.max !== undefined && expectation.min > expectation.max) {
+          issues.push(`Inverted test expectation range: ${key}`);
+        } else if (field === "noul" && ((expectation.min ?? 0) < 0 || (expectation.min ?? 0) > 1 || (expectation.max ?? 1) < 0 || (expectation.max ?? 1) > 1)) {
+          issues.push(`Noul expectation must be between 0 and 1: ${key}`);
+        } else if (question.type === "score" && ((expectation.min ?? 0) < 0 || (expectation.min ?? 0) > question.criteria.length - 1
+          || (expectation.max ?? question.criteria.length - 1) < 0 || (expectation.max ?? question.criteria.length - 1) > question.criteria.length - 1)) {
+          issues.push(`Score expectation is outside its levels: ${key}`);
+        }
+      }
+    }
+  }
   if (issues.length) throw new ManifestValidationError(issues);
   return manifest;
 }

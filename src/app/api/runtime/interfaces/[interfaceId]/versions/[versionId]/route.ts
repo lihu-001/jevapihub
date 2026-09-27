@@ -16,13 +16,23 @@ export async function POST(request: Request, context: Context) {
     const userId = await viewerId();
     const saved = await service().getVersion(idSchema.parse(interfaceId), idSchema.parse(versionId), userId);
     const started = performance.now();
-    const output = await runManifest(saved.version.manifestJson, body.inputs, apiKey);
     try {
-      await getDatabase().insert(schema.runEvents).values({ interfaceId, interfaceVersionId: versionId, userId,
-        success: true, providerModel: output.result.model, inputTokens: output.result.usage.input_tokens,
-        outputTokens: output.result.usage.output_tokens, latencyMs: Math.max(0, Math.round(performance.now() - started)),
-      });
-    } catch { /* A metrics failure must not replace a successful provider response. */ }
-    return json(output);
+      const output = await runManifest(saved.version.manifestJson, body.inputs, apiKey);
+      try {
+        await getDatabase().insert(schema.runEvents).values({ interfaceId, interfaceVersionId: versionId, userId,
+          success: true, providerModel: output.result.model, inputTokens: output.result.usage.input_tokens,
+          outputTokens: output.result.usage.output_tokens, latencyMs: Math.max(0, Math.round(performance.now() - started)),
+        });
+      } catch { /* Metrics must not replace a successful provider response. */ }
+      return json(output);
+    } catch (error) {
+      try {
+        await getDatabase().insert(schema.runEvents).values({ interfaceId, interfaceVersionId: versionId, userId,
+          success: false, providerModel: saved.version.manifestJson.runtime.model,
+          latencyMs: Math.max(0, Math.round(performance.now() - started)),
+        });
+      } catch { /* Preserve the original runtime error. */ }
+      throw error;
+    }
   } catch (error) { return handleCloudError(error); }
 }

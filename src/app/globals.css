@@ -134,6 +134,18 @@ pre { overflow: auto; padding: .8rem; border-radius: 6px; background: var(--code
 .hub-pagination, .hub-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin: 1.2rem 0; }
 .hub-detail section { margin-top: 2rem; }
 .hub-json { max-height: 420px; overflow: auto; padding: 1rem; background: var(--surface); border: 1px solid var(--line); font-size: .75rem; }
+.export-menu { position: relative; }
+.export-menu summary { list-style: none; cursor: pointer; }
+.export-menu summary::-webkit-details-marker { display: none; }
+.export-menu > div { position: absolute; z-index: 5; display: grid; gap: .25rem; min-width: 130px; padding: .4rem; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 8px 25px #17282122; }
+.test-suite-panel { padding-bottom: 2rem; }
+.test-suite-panel .editor-card summary { cursor: pointer; font-weight: 700; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; margin: 1.5rem 0; }
+.stats-grid div { display: grid; gap: .3rem; padding: 1rem; border: 1px solid var(--line); background: var(--surface); }
+.stats-grid strong { color: var(--accent); font-size: 1.45rem; }
+.stats-grid span { color: var(--muted); font-size: .8rem; }
+.stats-table { width: 100%; border-collapse: collapse; text-align: left; }
+.stats-table th, .stats-table td { padding: .65rem; border-bottom: 1px solid var(--line); }
 @media (max-width: 900px) {
   .hub-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -146,6 +158,7 @@ pre { overflow: auto; padding: .8rem; border-radius: 6px; background: var(--code
   .mobile-tabs button[aria-pressed="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
 }
 @media (max-width: 520px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-grid, .hub-filters { grid-template-columns: 1fr; }
   .builder-header { padding: .75rem; }
   .builder-header .name-input { width: calc(100% - 10rem); min-width: 130px; }

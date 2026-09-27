@@ -37,6 +37,8 @@ export type Postprocess =
   | { kind: "weighted_score"; metrics: WeightedMetric[] }
   | { kind: "jsonlogic"; outputs: { id: string; label: string; expression: JsonValue }[] };
 
+export type TestExpectation = string | string[] | { min?: number; max?: number };
+
 export type Manifest = {
   schemaVersion: "1.0";
   version?: number;
@@ -49,5 +51,5 @@ export type Manifest = {
   questions: Record<string, Question>;
   postprocess?: Postprocess;
   resultView: { showRaw: boolean; showProbabilities: boolean; showConfidence: boolean; order: string[] };
-  examples?: { name: string; inputs: Record<string, JsonValue>; notes?: string }[];
+  examples?: { name: string; inputs: Record<string, JsonValue>; notes?: string; expectations?: Record<string, TestExpectation> }[];
 };
