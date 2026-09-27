@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../src/db/schema";
 import { ensureOAuthUser, findOAuthUser } from "../../src/lib/auth/accounts";
 import { createInterfaceService } from "../../src/lib/interfaces/service";
+import { createHubService } from "../../src/lib/hub/service";
 import { manifest } from "../fixture";
 
 async function database() {
@@ -13,6 +14,7 @@ async function database() {
   await client.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
   await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
   await client.exec(readFileSync("src/db/migrations/0003_interface_hub.sql", "utf8"));
+  await client.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
   return { client, db: drizzle(client, { schema }) };
 }
 
@@ -44,13 +46,25 @@ describe("Cloud Interface service", () => {
       expect(v1.versionNumber).toBe(1);
       const changed = structuredClone(manifest);
       changed.metadata.name = "Updated draft";
+      changed.metadata.slug = "updated-draft";
+      changed.metadata.description = "Unpublished description";
       changed.questions.truth.instructions = "Different question";
       await service.saveDraft(project.id, owner.id, changed);
       expect((await service.read(project.id, owner.id)).aiGenerated).toBe(false);
+      const publicRead = await service.read(project.id, other.id);
+      expect(publicRead.interface.name).toBe("Demo");
+      expect(publicRead.interface.slug).toBe("demo");
+      expect(publicRead.interface.description).toBe("");
+      expect(publicRead.manifest?.questions.truth.instructions).toBe("Is it true?");
+      expect((await createHubService(db).list({ search: "Updated draft" }))).toHaveLength(0);
+      expect((await createHubService(db).list())[0].slug).toBe("demo");
+      expect((await createHubService(db).detail(owner.id, "demo", other.id)).interface.name).toBe("Demo");
+      await expect(createHubService(db).detail(owner.id, "updated-draft", other.id)).rejects.toMatchObject({ status: 404 });
       const original = await service.getVersion(project.id, v1.id, other.id);
       expect(original.version.manifestJson.questions.truth.instructions).toBe("Is it true?");
       const v2 = await service.publish(project.id, owner.id, "private");
       expect(v2.versionNumber).toBe(2);
+      expect((await service.read(project.id, owner.id)).interface.slug).toBe("updated-draft");
       expect(v2.manifestJson).toMatchObject({ version: 2 });
       await expect(service.getVersion(project.id, v1.id, other.id)).rejects.toMatchObject({ status: 404 });
       const history = await service.listVersions(project.id, owner.id);

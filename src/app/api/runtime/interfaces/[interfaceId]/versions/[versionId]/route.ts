@@ -4,16 +4,18 @@ import { runManifest } from "../../../../../../../lib/runtime/run";
 import { RuntimeError } from "../../../../../../../lib/typesafe/errors";
 import { getDatabase } from "../../../../../../../db/database";
 import * as schema from "../../../../../../../db/schema";
+import { enforceRuntimeRateLimit } from "../../../../../../../lib/runtime/rate-limit";
 
 type Context = { params: Promise<{ interfaceId: string; versionId: string }> };
 
 export async function POST(request: Request, context: Context) {
   try {
+    const userId = await viewerId();
+    enforceRuntimeRateLimit(request, userId);
     const apiKey = request.headers.get("x-typesafe-api-key") ?? "";
     if (!apiKey.trim()) throw new RuntimeError("MISSING_TYPESAFE_KEY", 400);
     const { interfaceId, versionId } = await context.params;
     const body = z.object({ inputs: z.record(z.string(), z.unknown()) }).strict().parse(await jsonBody(request));
-    const userId = await viewerId();
     const saved = await service().getVersion(idSchema.parse(interfaceId), idSchema.parse(versionId), userId);
     const started = performance.now();
     try {

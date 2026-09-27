@@ -11,7 +11,7 @@ describe("Interface Hub", () => {
   it("lists public versions only, filters tags, counts runs and stars, and forks an exact version", async () => {
     const client = new PGlite();
     try {
-      for (const name of ["0000_foundation.sql", "0001_oauth_accounts.sql", "0002_ai_builder.sql", "0003_interface_hub.sql"]) {
+      for (const name of ["0000_foundation.sql", "0001_oauth_accounts.sql", "0002_ai_builder.sql", "0003_interface_hub.sql", "0004_admin_categories.sql"]) {
         await client.exec(readFileSync(`src/db/migrations/${name}`, "utf8"));
       }
       const db = drizzle(client, { schema });

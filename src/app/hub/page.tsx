@@ -1,24 +1,36 @@
 import Link from "next/link";
 import { getDatabase } from "../../db/database";
+import * as schema from "../../db/schema";
+import { eq } from "drizzle-orm";
+import { getCurrentUserId } from "../../lib/auth/current-user";
 import { createHubService, type HubSort } from "../../lib/hub/service";
 
-type Query = { search?: string; category?: string; tag?: string; language?: string; sort?: string; featured?: string; page?: string };
+type Query = { search?: string | string[]; category?: string | string[]; tag?: string | string[];
+  language?: string | string[]; sort?: string | string[]; featured?: string | string[]; page?: string | string[] };
+function single(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Query> }) {
-  const query = await searchParams;
+  const raw = await searchParams;
+  const query = { search: single(raw.search), category: single(raw.category), tag: single(raw.tag),
+    language: single(raw.language), sort: single(raw.sort), featured: single(raw.featured), page: single(raw.page) };
   const sort: HubSort = ["latest", "runs", "stars", "featured"].includes(query.sort || "") ? query.sort as HubSort : "featured";
   const page = Math.max(1, Math.min(1000, Number.parseInt(query.page || "1", 10) || 1));
   const filters = { search: query.search?.slice(0, 120), category: query.category?.slice(0, 64), tag: query.tag?.slice(0, 64),
     language: query.language?.slice(0, 32), sort, featured: query.featured === "true", page };
-  const cards = await createHubService(getDatabase()).list(filters);
+  const db = getDatabase();
+  const userId = await getCurrentUserId();
+  const [cards, categories] = await Promise.all([createHubService(db).list(filters),
+    db.select({ slug: schema.hubCategories.slug, name: schema.hubCategories.name }).from(schema.hubCategories)
+      .where(eq(schema.hubCategories.enabled, true)).orderBy(schema.hubCategories.sortOrder)]);
+  const [viewer] = userId ? await db.select({ role: schema.users.role }).from(schema.users).where(eq(schema.users.id, userId)).limit(1) : [];
   const nextParams = new URLSearchParams(Object.entries(query).filter(([key, value]) => key !== "page" && value !== undefined) as [string, string][]);
   nextParams.set("page", String(page + 1));
   return <main className="hub-page">
-    <nav className="content-nav"><Link className="brand" href="/">Jev / Interface Hub</Link><Link href="/builder/new">创建 Interface ↗</Link></nav>
+    <nav className="content-nav"><Link className="brand" href="/">Jev / Interface Hub</Link><span>{viewer?.role === "admin" && <><Link href="/admin/interfaces">管理后台</Link>　</>}<Link href="/builder/new">创建 Interface ↗</Link></span></nav>
     <div className="hub-heading"><span className="eyebrow">PUBLIC INTERFACES</span><h1>发现可以直接运行的判断接口。</h1><p>浏览公开版本，带上自己的 TypeSafe API Key 即可试运行。</p></div>
     <form className="hub-filters" action="/hub" method="get">
       <label className="field"><span>搜索</span><input name="search" defaultValue={filters.search || ""} maxLength={120} placeholder="名称或描述" /></label>
-      <label className="field"><span>分类</span><input name="category" defaultValue={filters.category || ""} maxLength={64} placeholder="例如 general" /></label>
+      <label className="field"><span>分类</span><input name="category" list="hub-category-options" defaultValue={filters.category || ""} maxLength={64} placeholder="例如 writing" /><datalist id="hub-category-options">{categories.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}</datalist></label>
       <label className="field"><span>标签</span><input name="tag" defaultValue={filters.tag || ""} maxLength={64} /></label>
       <label className="field"><span>语言</span><input name="language" defaultValue={filters.language || ""} maxLength={32} placeholder="例如 zh-CN" /></label>
       <label className="field"><span>排序</span><select name="sort" defaultValue={sort}><option value="featured">精选优先</option><option value="latest">最新</option><option value="runs">运行最多</option><option value="stars">收藏最多</option></select></label>

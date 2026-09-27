@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "中文文章模板腔评估",
+    "slug": "zh-article-template-tone",
+    "description": "检查中文文章的套话密度、具体性和行文自然度。分数只是这份 Interface 的检查结果，不是作者身份或 AI 生成概率。",
+    "category": "writing",
+    "tags": ["中文写作", "内容评估"],
+    "language": "zh-CN"
+  },
+  "runtime": { "provider": "typesafe", "model": "jev-latest", "timeoutMs": 60000, "maxRetries": 2 },
+  "inputs": [
+    { "id": "article", "label": "文章正文", "component": "textarea", "valueType": "string", "required": true, "constraints": { "minLength": 20, "maxLength": 50000 } },
+    { "id": "audience", "label": "目标读者", "component": "text", "valueType": "string", "required": false }
+  ],
+  "stateTemplate": { "article": { "$input": "article" }, "audience": { "$input": "audience" } },
+  "questions": {
+    "specificity": { "type": "score", "instructions": "文章是否提供了具体事实、场景或例子，而不只是抽象概括？按从缺乏到充分评分。", "criteria": ["空泛", "少量细节", "部分具体", "多数具体", "充分具体"] },
+    "naturalness": { "type": "score", "instructions": "中文表达是否自然、连贯，并符合内容语境？按从生硬到自然评分。", "criteria": ["生硬", "较生硬", "一般", "较自然", "自然"] },
+    "template_tone": { "type": "noul", "instructions": "文章是否大量依赖可替换到其他主题的模板句、套话或机械排比？只判断文本特征，不推断作者身份。" }
+  },
+  "postprocess": { "kind": "weighted_score", "metrics": [{ "id": "writing_quality", "label": "表达质量参考分", "scale": 100, "precision": 1, "sources": [
+    { "questionId": "specificity", "weight": 1, "transform": "score_percent" },
+    { "questionId": "naturalness", "weight": 1, "transform": "score_percent" },
+    { "questionId": "template_tone", "weight": 1, "transform": "inverse_noul_percent" }
+  ] }] },
+  "resultView": { "showRaw": true, "showProbabilities": true, "showConfidence": true, "order": ["specificity", "naturalness", "template_tone"] },
+  "examples": [{ "name": "简短示例", "inputs": { "article": "上周我们把报名表从十二项缩到六项。改完后，三天内完成报名的人数从四十七人增加到六十二人；同事也少花了半小时核对重复信息。" } }]
+}

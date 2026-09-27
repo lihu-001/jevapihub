@@ -2,7 +2,7 @@ export type RuntimeErrorCode =
   | "INVALID_MANIFEST" | "INVALID_INPUT" | "MISSING_TYPESAFE_KEY"
   | "TYPESAFE_UNAUTHORIZED" | "TYPESAFE_VALIDATION_ERROR" | "TYPESAFE_RATE_LIMIT"
   | "TYPESAFE_OVERLOADED" | "TYPESAFE_TIMEOUT" | "TYPESAFE_UNKNOWN_ERROR"
-  | "UPSTREAM_INVALID_RESPONSE" | "POSTPROCESS_ERROR";
+  | "UPSTREAM_INVALID_RESPONSE" | "POSTPROCESS_ERROR" | "RATE_LIMITED_BY_APP";
 
 const messages: Record<RuntimeErrorCode, string> = {
   INVALID_MANIFEST: "Interface Manifest 无效",
@@ -16,6 +16,7 @@ const messages: Record<RuntimeErrorCode, string> = {
   TYPESAFE_UNKNOWN_ERROR: "TypeSafe 请求失败",
   UPSTREAM_INVALID_RESPONSE: "TypeSafe 返回了无效结果",
   POSTPROCESS_ERROR: "结果处理失败",
+  RATE_LIMITED_BY_APP: "平台请求过于频繁，请稍后重试",
 };
 
 export class RuntimeError extends Error {

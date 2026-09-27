@@ -31,6 +31,7 @@ export const interfaces = pgTable("interfaces", {
   forkedFromVersionId: uuid("forked_from_version_id"),
   publishedVersionId: uuid("published_version_id"),
   featured: boolean("featured").notNull().default(false),
+  adminHidden: boolean("admin_hidden").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("interfaces_owner_slug_unique").on(table.ownerId, table.slug)]);
@@ -47,6 +48,14 @@ export const aiBuilderUsage = pgTable("ai_builder_usage", {
   usageDate: date("usage_date").notNull(),
   requestCount: integer("request_count").notNull().default(0),
 }, (table) => [primaryKey({ columns: [table.userId, table.usageDate] })]);
+
+export const hubCategories = pgTable("hub_categories", {
+  slug: varchar("slug", { length: 64 }).primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const interfaceVersions = pgTable("interface_versions", {
   id: uuid("id").primaryKey().defaultRandom(),

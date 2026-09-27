@@ -29,27 +29,33 @@ export function createHubService<T extends PgQueryResultHKT>(db: Db<T>) {
   return {
     async list(filters: HubFilters = {}): Promise<HubCard[]> {
       const sort = filters.sort ?? "featured";
-      const order = sort === "runs" ? sql`COALESCE(r.run_count, 0) DESC, i.updated_at DESC`
-        : sort === "stars" ? sql`COALESCE(s.star_count, 0) DESC, i.updated_at DESC`
-          : sort === "latest" ? sql`i.updated_at DESC`
-            : sql`i.featured DESC, i.updated_at DESC`;
+      const order = sort === "runs" ? sql`COALESCE(r.run_count, 0) DESC, v.published_at DESC`
+        : sort === "stars" ? sql`COALESCE(s.star_count, 0) DESC, v.published_at DESC`
+          : sort === "latest" ? sql`v.published_at DESC`
+            : sql`i.featured DESC, v.published_at DESC`;
       const page = Math.max(1, Math.min(1000, Math.floor(filters.page || 1)));
       const result = await db.execute(sql`
-        SELECT i.id, i.owner_id AS "ownerId", u.name AS "ownerName", i.slug, i.name, i.description,
-          i.category, i.language, i.featured, v.id AS "versionId", v.version_number AS "versionNumber",
+        SELECT i.id, i.owner_id AS "ownerId", u.name AS "ownerName",
+          v.manifest_json->'metadata'->>'slug' AS slug,
+          v.manifest_json->'metadata'->>'name' AS name,
+          v.manifest_json->'metadata'->>'description' AS description,
+          v.manifest_json->'metadata'->>'category' AS category,
+          v.manifest_json->'metadata'->>'language' AS language,
+          i.featured, v.id AS "versionId", v.version_number AS "versionNumber",
           v.manifest_json->'runtime'->>'model' AS model,
           COALESCE(v.manifest_json->'metadata'->'tags', '[]'::jsonb) AS tags,
           COALESCE(r.run_count, 0)::integer AS "runCount", COALESCE(s.star_count, 0)::integer AS "starCount",
-          i.updated_at AS "updatedAt"
+          v.published_at AS "updatedAt"
         FROM interfaces i
         JOIN users u ON u.id = i.owner_id
         JOIN interface_versions v ON v.id = i.published_version_id
         LEFT JOIN (SELECT interface_id, count(*) AS run_count FROM run_events WHERE success = true GROUP BY interface_id) r ON r.interface_id = i.id
         LEFT JOIN (SELECT interface_id, count(*) AS star_count FROM stars GROUP BY interface_id) s ON s.interface_id = i.id
         WHERE i.status = 'published' AND i.visibility = 'public'
-          AND (${filters.search?.trim() || ""} = '' OR position(lower(${filters.search?.trim() || ""}) in lower(i.name || ' ' || i.description)) > 0)
-          AND (${filters.category || ""} = '' OR i.category = ${filters.category || ""})
-          AND (${filters.language || ""} = '' OR i.language = ${filters.language || ""})
+          AND (${filters.search?.trim() || ""} = '' OR position(lower(${filters.search?.trim() || ""}) in lower(
+            (v.manifest_json->'metadata'->>'name') || ' ' || (v.manifest_json->'metadata'->>'description'))) > 0)
+          AND (${filters.category || ""} = '' OR v.manifest_json->'metadata'->>'category' = ${filters.category || ""})
+          AND (${filters.language || ""} = '' OR v.manifest_json->'metadata'->>'language' = ${filters.language || ""})
           AND (${filters.tag || ""} = '' OR COALESCE(v.manifest_json->'metadata'->'tags', '[]'::jsonb) @> jsonb_build_array(${filters.tag || ""}::text))
           AND (${!!filters.featured} = false OR i.featured = true)
         ORDER BY ${order}
@@ -58,19 +64,26 @@ export function createHubService<T extends PgQueryResultHKT>(db: Db<T>) {
       return rowsOf<HubCard>(result);
     },
     async detail(ownerId: string, slug: string, viewerId: string | null) {
-      const [project] = await db.select().from(schema.interfaces).where(and(eq(schema.interfaces.ownerId, ownerId), eq(schema.interfaces.slug, slug))).limit(1);
+      const [record] = await db.select({ project: schema.interfaces, version: schema.interfaceVersions }).from(schema.interfaces)
+        .innerJoin(schema.interfaceVersions, eq(schema.interfaceVersions.id, schema.interfaces.publishedVersionId))
+        .where(and(eq(schema.interfaces.ownerId, ownerId), sql`${schema.interfaceVersions.manifestJson}->'metadata'->>'slug' = ${slug}`)).limit(1);
+      const project = record?.project;
       if (!project || project.status !== "published" || (project.visibility === "private" && project.ownerId !== viewerId)) {
         throw new InterfaceError("INTERFACE_NOT_FOUND", 404);
       }
-      const [version] = await db.select().from(schema.interfaceVersions).where(eq(schema.interfaceVersions.id, project.publishedVersionId!)).limit(1);
+      const version = record.version;
       if (!version || version.interfaceId !== project.id) throw new InterfaceError("INTERFACE_NOT_FOUND", 404);
+      const manifest = parseManifest(version.manifestJson);
+      const publishedProject = { ...project, name: manifest.metadata.name, slug: manifest.metadata.slug,
+        description: manifest.metadata.description, category: manifest.metadata.category,
+        language: manifest.metadata.language, updatedAt: version.publishedAt };
       const [owner] = await db.select({ name: schema.users.name, avatarUrl: schema.users.avatarUrl }).from(schema.users).where(eq(schema.users.id, ownerId)).limit(1);
       const [star] = viewerId ? await db.select().from(schema.stars).where(and(eq(schema.stars.interfaceId, project.id), eq(schema.stars.userId, viewerId))).limit(1) : [];
       const counts = rowsOf<{ runCount: number; starCount: number }>(await db.execute(sql`
         SELECT (SELECT count(*)::integer FROM run_events WHERE interface_id = ${project.id}::uuid AND success = true) AS "runCount",
                (SELECT count(*)::integer FROM stars WHERE interface_id = ${project.id}::uuid) AS "starCount"
       `))[0];
-      return { interface: project, owner, version: { ...version, manifestJson: parseManifest(version.manifestJson) }, starred: !!star, ...counts };
+      return { interface: publishedProject, owner, version: { ...version, manifestJson: manifest }, starred: !!star, ...counts };
     },
     async star(id: string, userId: string) {
       await visibleProject(id, userId);

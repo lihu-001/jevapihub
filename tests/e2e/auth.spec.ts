@@ -15,4 +15,14 @@ test("游客可浏览登录页，但云端操作需要登录", async ({ page }) 
   const sampleId = "00000000-0000-4000-8000-000000000000";
   expect((await page.request.post(`/api/interfaces/${sampleId}/star`)).status()).toBe(401);
   expect((await page.request.post(`/api/interfaces/${sampleId}/fork`, { data: {} })).status()).toBe(401);
+  expect((await page.request.put(`/api/admin/interfaces/${sampleId}/hidden`, { data: { hidden: true } })).status()).toBe(401);
+});
+
+test("系统暗色偏好切换基础设计变量", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  const dark = await page.locator("html").evaluate((element) => getComputedStyle(element).backgroundColor);
+  await page.emulateMedia({ colorScheme: "light" });
+  const light = await page.locator("html").evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(dark).not.toBe(light);
 });

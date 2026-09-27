@@ -34,6 +34,7 @@ describe("AI Builder HTTP API", () => {
       await client.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0003_interface_hub.sql", "utf8"));
+      await client.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
       const db = drizzle(client, { schema });
       holder.db = db;
       const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
@@ -68,6 +69,7 @@ describe("AI Builder HTTP API", () => {
       await client.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0003_interface_hub.sql", "utf8"));
+      await client.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
       const db = drizzle(client, { schema });
       holder.db = db;
       const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();

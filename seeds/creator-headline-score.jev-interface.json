@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "自媒体标题评分",
+    "slug": "creator-headline-score",
+    "description": "从清晰度、读者价值、具体度和题文一致性评估标题，并单独指出标题党风险。总分是按 Manifest 权重计算的参考分。",
+    "category": "writing",
+    "tags": ["标题", "内容评估"],
+    "language": "zh-CN"
+  },
+  "runtime": { "provider": "typesafe", "model": "jev-latest", "timeoutMs": 60000, "maxRetries": 2 },
+  "inputs": [
+    { "id": "title", "label": "标题", "component": "text", "valueType": "string", "required": true, "constraints": { "minLength": 2, "maxLength": 200 } },
+    { "id": "article", "label": "正文或摘要", "component": "textarea", "valueType": "string", "required": true, "constraints": { "minLength": 10, "maxLength": 50000 } }
+  ],
+  "stateTemplate": { "title": { "$input": "title" }, "article": { "$input": "article" } },
+  "questions": {
+    "clarity": { "type": "score", "instructions": "读者能否迅速理解标题要讨论的主题？按从模糊到清晰评分。", "criteria": ["模糊", "略模糊", "基本清楚", "清晰", "非常清晰"] },
+    "reader_value": { "type": "score", "instructions": "标题是否准确呈现文章能带给目标读者的价值？按从无到明确评分。", "criteria": ["无", "较弱", "一般", "明确", "非常明确"] },
+    "specificity": { "type": "score", "instructions": "标题是否包含有助于理解主题的具体信息，同时没有过度堆砌？", "criteria": ["空泛", "略空泛", "一般", "具体", "具体且简洁"] },
+    "alignment": { "type": "score", "instructions": "标题承诺与正文实际内容是否一致？", "criteria": ["明显不符", "部分不符", "基本一致", "一致", "高度一致"] },
+    "clickbait": { "type": "choice", "instructions": "标题的悬念是否与正文相称？正常悬念不算标题党。", "criteria": { "none": "没有标题党问题", "mild": "有轻微夸张", "severe": "明显误导或过度承诺" } }
+  },
+  "postprocess": { "kind": "weighted_score", "metrics": [{ "id": "overall", "label": "标题参考总分", "scale": 100, "precision": 1, "sources": [
+    { "questionId": "clarity", "weight": 1, "transform": "score_percent" },
+    { "questionId": "reader_value", "weight": 1, "transform": "score_percent" },
+    { "questionId": "specificity", "weight": 1, "transform": "score_percent" },
+    { "questionId": "alignment", "weight": 2, "transform": "score_percent" }
+  ] }] },
+  "resultView": { "showRaw": true, "showProbabilities": true, "showConfidence": true, "order": ["clarity", "reader_value", "specificity", "alignment", "clickbait"] },
+  "examples": [{ "name": "简短示例", "inputs": { "title": "我们把报名表缩短后，三天报名人数增加了多少？", "article": "团队将报名表从十二项缩到六项，三天内报名人数由四十七人增加到六十二人。" } }]
+}

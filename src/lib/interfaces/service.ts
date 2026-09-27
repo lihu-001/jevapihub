@@ -23,6 +23,13 @@ function isVisible(row: typeof schema.interfaces.$inferSelect, viewerId: string 
   return row.ownerId === viewerId || (row.status === "published" && row.visibility !== "private");
 }
 
+function summaryFromVersion(row: typeof schema.interfaces.$inferSelect, manifest: Manifest, publishedAt: Date) {
+  return { ...row, name: manifest.metadata.name, slug: manifest.metadata.slug,
+    description: manifest.metadata.description, category: manifest.metadata.category,
+    language: manifest.metadata.language, updatedAt: publishedAt,
+  };
+}
+
 export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
   async function getRow(id: string) {
     const [row] = await db.select().from(schema.interfaces).where(eq(schema.interfaces.id, id)).limit(1);
@@ -67,18 +74,22 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
       }
       const [version] = await db.select().from(schema.interfaceVersions).where(eq(schema.interfaceVersions.id, row.publishedVersionId!)).limit(1);
       if (!version || version.interfaceId !== row.id) throw new InterfaceError("INTERFACE_NOT_FOUND", 404);
-      return { interface: row, manifest: parseManifest(version.manifestJson), draft: false, aiGenerated: false };
+      const manifest = parseManifest(version.manifestJson);
+      return { interface: summaryFromVersion(row, manifest, version.publishedAt), manifest, draft: false, aiGenerated: false };
     },
     async saveDraft(id: string, ownerId: string, rawManifest: unknown, aiGenerated = false) {
       await requireOwner(id, ownerId);
       const manifest = draftManifest(rawManifest);
       try {
         await db.transaction(async (tx) => {
+          const [current] = await tx.select({ status: schema.interfaces.status }).from(schema.interfaces)
+            .where(eq(schema.interfaces.id, id)).for("update").limit(1);
+          if (!current || current.status === "archived") throw new InterfaceError("INTERFACE_ARCHIVED", 409);
           await tx.update(schema.interfaceDrafts).set({ manifestJson: manifest, aiGenerated, updatedAt: new Date() }).where(eq(schema.interfaceDrafts.interfaceId, id));
-          await tx.update(schema.interfaces).set({ name: manifest.metadata.name, slug: manifest.metadata.slug,
-            description: manifest.metadata.description, category: manifest.metadata.category, language: manifest.metadata.language,
-            updatedAt: new Date(),
-          }).where(eq(schema.interfaces.id, id));
+          await tx.update(schema.interfaces).set(current.status === "draft" ? {
+            name: manifest.metadata.name, slug: manifest.metadata.slug, description: manifest.metadata.description,
+            category: manifest.metadata.category, language: manifest.metadata.language, updatedAt: new Date(),
+          } : { updatedAt: new Date() }).where(eq(schema.interfaces.id, id));
         });
       } catch (error) {
         if (isUniqueViolation(error)) throw new InterfaceError("SLUG_ALREADY_EXISTS", 409);
@@ -108,6 +119,8 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
           manifestJson: { ...manifest, version: versionNumber }, createdBy: ownerId,
         }).returning();
         await tx.update(schema.interfaces).set({ status: "published", visibility: visibility ?? row.visibility,
+          name: manifest.metadata.name, slug: manifest.metadata.slug, description: manifest.metadata.description,
+          category: manifest.metadata.category, language: manifest.metadata.language,
           publishedVersionId: version.id, updatedAt: new Date(),
         }).where(eq(schema.interfaces.id, id));
         return version;
@@ -126,7 +139,9 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
       const [version] = await db.select().from(schema.interfaceVersions)
         .where(and(eq(schema.interfaceVersions.id, versionId), eq(schema.interfaceVersions.interfaceId, id))).limit(1);
       if (!version) throw new InterfaceError("VERSION_NOT_FOUND", 404);
-      return { interface: row, version: { ...version, manifestJson: parseManifest(version.manifestJson) } };
+      const manifest = parseManifest(version.manifestJson);
+      return { interface: row.ownerId === viewerId ? row : summaryFromVersion(row, manifest, version.publishedAt),
+        version: { ...version, manifestJson: manifest } };
     },
   };
 }

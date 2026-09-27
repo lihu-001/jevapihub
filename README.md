@@ -13,7 +13,13 @@ npm run dev
 
 使用 PostgreSQL 时，先在当前 shell 设置 `DATABASE_URL`，再运行 `npm run db:migrate`。迁移脚本记录文件哈希，拒绝修改已执行的 migration。集成测试使用嵌入式 PostgreSQL，无需本地数据库服务。
 
+运行 `npm run db:seed` 可幂等导入两份官方示例 Manifest（中文文章模板腔评估、自媒体标题评分），并发布为公开精选版本。运行前须先执行 `npm run db:migrate`。
+
+`/admin/interfaces` 供数据库中 `role=admin` 的登录用户管理公开 Interface、精选、隐藏与分类，并查看不含用户正文的运行汇总。普通 OAuth 用户默认为 `user`；管理员角色需由数据库管理员明确设置。
+
 云端功能需要设置 `AUTH_SECRET`、`NEXTAUTH_URL`，并配置 GitHub 或 Google OAuth Client ID/Secret。开发环境回调地址分别为 `http://localhost:3000/api/auth/callback/github` 和 `http://localhost:3000/api/auth/callback/google`。不同 Provider 的账号不会仅凭相同邮箱自动关联。
+
+Runtime 的每分钟请求数可用 `RUNTIME_RATE_LIMIT_GUEST` 和 `RUNTIME_RATE_LIMIT_USER` 配置，默认分别为 60 和 120。当前限流计数位于服务进程内，多实例部署需要接入共享限流存储。
 
 AI Builder 需要 `AI_BUILDER_API_KEY`（平台 OpenAI Key），可设置 `AI_BUILDER_MODEL`、`AI_BUILDER_DAILY_LIMIT`，用 `AI_BUILDER_ENABLED=false` 关闭。仅登录用户可调用；每天按 UTC 日期对每位用户计数。AI 返回的 Manifest 先经过 JSON Schema 和业务规则校验，失败时自动修复一次。候选结果须在 Builder 中预览并手动应用，已发布版本不会被 AI 接口修改。
 

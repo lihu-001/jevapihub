@@ -55,6 +55,10 @@ describe("Runtime integration", () => {
     const db = new PGlite();
     try {
       await db.exec(readFileSync("src/db/migrations/0000_foundation.sql", "utf8"));
+      await db.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
+      await db.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
+      await db.exec(readFileSync("src/db/migrations/0003_interface_hub.sql", "utf8"));
+      await db.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
       const fetcher = vi.fn(async () => response()) as unknown as typeof fetch;
       const output = await runManifest(manifest, { text: "hello" }, SECRET, { fetcher });
       await db.query("INSERT INTO run_events(success, provider_model, input_tokens, output_tokens, latency_ms, provider_status) VALUES ($1, $2, $3, $4, $5, $6)",
@@ -62,7 +66,7 @@ describe("Runtime integration", () => {
       const loggerCapture = JSON.stringify(redactSecrets({ Authorization: `Bearer ${SECRET}`, status: 200 }, [SECRET]));
       const responseSnapshot = JSON.stringify(output);
       const exportFile = JSON.stringify(manifest);
-      const tables = ["users", "interfaces", "interface_drafts", "interface_versions", "stars", "run_events"];
+      const tables = ["users", "oauth_accounts", "interfaces", "interface_drafts", "interface_versions", "stars", "run_events", "ai_builder_usage", "hub_categories"];
       const rows = await Promise.all(tables.map((table) => db.query(`SELECT row_to_json(t)::text AS data FROM ${table} t`)));
       const dbSnapshot = JSON.stringify(rows.map((result) => result.rows));
       const columns = await db.query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public'");
