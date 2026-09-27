@@ -25,6 +25,7 @@ describe("Cloud HTTP API", () => {
     try {
       await client.exec(readFileSync("src/db/migrations/0000_foundation.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
+      await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
       const db = drizzle(client, { schema });
       holder.db = db;
       const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();

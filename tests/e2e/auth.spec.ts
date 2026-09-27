@@ -8,4 +8,8 @@ test("游客可浏览登录页，但云端操作需要登录", async ({ page }) 
   const response = await page.request.post("/api/interfaces", { data: { manifest } });
   expect(response.status()).toBe(401);
   expect(response.headers()["cache-control"]).toBe("no-store");
+  const aiResponse = await page.request.post("/api/ai-builder/generate", { data: { prompt: "Create a content scoring Interface" } });
+  expect(aiResponse.status()).toBe(401);
+  await page.goto("/builder/new");
+  await expect(page.getByRole("button", { name: "AI Builder" })).toHaveCount(0);
 });

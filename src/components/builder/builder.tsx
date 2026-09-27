@@ -7,6 +7,7 @@ import { createStarterManifest } from "../../lib/manifest/starter";
 import type { InputDefinition, Manifest, Question } from "../../lib/manifest/types";
 import { parseManifest, ManifestValidationError } from "../../lib/manifest/validate";
 import { CredentialDialog } from "../credentials/credential-dialog";
+import { AiBuilderPanel } from "./ai-builder-panel";
 import { InputEditor } from "./input-editor";
 import { QuestionEditor } from "./question-editor";
 import { RunPanel } from "./run-panel";
@@ -27,8 +28,8 @@ function nextQuestionId(questions: Manifest["questions"]) {
   return `question_${count}`;
 }
 
-export function Builder({ initialManifest, cloudId, canCloudSave = false, initialVisibility = "private" }: {
-  initialManifest?: Manifest; cloudId?: string; canCloudSave?: boolean; initialVisibility?: Visibility;
+export function Builder({ initialManifest, cloudId, canCloudSave = false, initialVisibility = "private", initialAiGenerated = false }: {
+  initialManifest?: Manifest; cloudId?: string; canCloudSave?: boolean; initialVisibility?: Visibility; initialAiGenerated?: boolean;
 }) {
   const router = useRouter();
   const [manifest, setManifest] = useState<Manifest>(() => initialManifest ?? createStarterManifest());
@@ -43,6 +44,8 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
   const [tab, setTab] = useState<"inputs" | "questions" | "test">("inputs");
   const [status, setStatus] = useState("");
   const [rawOpen, setRawOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState(initialAiGenerated);
   const [rawText, setRawText] = useState("");
   const dragged = useRef<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -154,10 +157,10 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
     try {
       const value = currentManifest();
       if (activeCloudId) {
-        await cloudRequest(`/api/interfaces/${activeCloudId}/draft`, "PUT", { manifest: value });
+        await cloudRequest(`/api/interfaces/${activeCloudId}/draft`, "PUT", { manifest: value, aiGenerated });
         setStatus("Draft 已保存到云端");
       } else {
-        const created = await cloudRequest("/api/interfaces", "POST", { manifest: value });
+        const created = await cloudRequest("/api/interfaces", "POST", { manifest: value, aiGenerated });
         const id = created.interface?.id;
         if (!id) throw new Error("云端创建失败");
         setActiveCloudId(id);
@@ -171,7 +174,7 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
     try {
       const value = currentManifest();
       const publishedDraft = { ...value, runtime: { ...value.runtime, model: publishModel } };
-      await cloudRequest(`/api/interfaces/${activeCloudId}/draft`, "PUT", { manifest: publishedDraft });
+      await cloudRequest(`/api/interfaces/${activeCloudId}/draft`, "PUT", { manifest: publishedDraft, aiGenerated });
       const result = await cloudRequest(`/api/interfaces/${activeCloudId}/publish`, "POST", { visibility });
       setManifest(publishedDraft);
       setPublishOpen(false);
@@ -199,6 +202,7 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
       if (file.size > 512 * 1024) throw new Error("Manifest 文件不能超过 512 KB");
       const value = parseManifest(JSON.parse(await file.text()) as unknown);
       setManifest(value);
+      setAiGenerated(false);
       setStateText(JSON.stringify(value.stateTemplate, null, 2));
       setStatus("Manifest 已导入");
     } catch (error) { setStatus(issueMessage(error)); }
@@ -208,6 +212,7 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
     try {
       const value = parseManifest(JSON.parse(rawText) as unknown);
       setManifest(value);
+      setAiGenerated(false);
       setStateText(JSON.stringify(value.stateTemplate, null, 2));
       setRawOpen(false);
       setStatus("Raw Manifest 已应用");
@@ -228,9 +233,12 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
         <button className="button button-small" type="button" onClick={() => importInput.current?.click()}>导入</button>
         <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importManifest} />
         <button className="button button-small" type="button" onClick={exportManifest}>导出 JSON</button>
+        {canCloudSave && <button className="button button-small" type="button" onClick={() => setAiOpen(!aiOpen)}>AI Builder</button>}
         <button className="button button-small" type="button" onClick={() => { try { setRawText(JSON.stringify({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown }, null, 2)); } catch { setRawText(JSON.stringify(manifest, null, 2)); } setRawOpen(!rawOpen); }}>Raw Manifest</button>
       </div>
     </header>
+    {aiGenerated && <p className="notice ai-marker">AI-generated draft — please test before publishing</p>}
+    {aiOpen && <AiBuilderPanel manifest={manifest} onApply={(candidate) => { setManifest(candidate); setStateText(JSON.stringify(candidate.stateTemplate, null, 2)); setAiGenerated(true); setStatus("AI 候选已应用到 Draft，请测试后保存或发布"); }} onClose={() => setAiOpen(false)} />}
     {rawOpen && <div className="raw-editor"><label className="field"><span>完整 Manifest JSON</span><textarea className="mono" rows={14} value={rawText} onChange={(event) => setRawText(event.target.value)} /></label><button className="button button-primary" type="button" onClick={applyRaw}>应用 Manifest</button></div>}
     {publishOpen && <div className="publish-panel" role="group" aria-label="发布设置"><h2>发布新版本</h2>
       <div className="field-row">

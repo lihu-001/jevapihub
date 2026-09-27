@@ -11,6 +11,7 @@ async function database() {
   const client = new PGlite();
   await client.exec(readFileSync("src/db/migrations/0000_foundation.sql", "utf8"));
   await client.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
+  await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
   return { client, db: drizzle(client, { schema }) };
 }
 
@@ -34,7 +35,8 @@ describe("Cloud Interface service", () => {
       const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
       const [other] = await db.insert(schema.users).values({ name: "Other" }).returning();
       const service = createInterfaceService(db);
-      const project = await service.create(owner.id, manifest);
+      const project = await service.create(owner.id, manifest, true);
+      expect((await service.read(project.id, owner.id)).aiGenerated).toBe(true);
       await expect(service.read(project.id, other.id)).rejects.toMatchObject({ status: 404 });
       await expect(service.saveDraft(project.id, other.id, manifest)).rejects.toMatchObject({ status: 404 });
       const v1 = await service.publish(project.id, owner.id, "public");
@@ -43,6 +45,7 @@ describe("Cloud Interface service", () => {
       changed.metadata.name = "Updated draft";
       changed.questions.truth.instructions = "Different question";
       await service.saveDraft(project.id, owner.id, changed);
+      expect((await service.read(project.id, owner.id)).aiGenerated).toBe(false);
       const original = await service.getVersion(project.id, v1.id, other.id);
       expect(original.version.manifestJson.questions.truth.instructions).toBe("Is it true?");
       const v2 = await service.publish(project.id, owner.id, "private");

@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
+import { boolean, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -37,8 +37,15 @@ export const interfaces = pgTable("interfaces", {
 export const interfaceDrafts = pgTable("interface_drafts", {
   interfaceId: uuid("interface_id").primaryKey().references(() => interfaces.id),
   manifestJson: jsonb("manifest_json").notNull(),
+  aiGenerated: boolean("ai_generated").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const aiBuilderUsage = pgTable("ai_builder_usage", {
+  userId: uuid("user_id").notNull().references(() => users.id),
+  usageDate: date("usage_date").notNull(),
+  requestCount: integer("request_count").notNull().default(0),
+}, (table) => [primaryKey({ columns: [table.userId, table.usageDate] })]);
 
 export const interfaceVersions = pgTable("interface_versions", {
   id: uuid("id").primaryKey().defaultRandom(),

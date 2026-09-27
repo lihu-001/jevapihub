@@ -108,7 +108,15 @@ pre { overflow: auto; padding: .8rem; border-radius: 6px; background: var(--code
 .distribution-row { display: grid; grid-template-columns: minmax(55px, 1fr) 2fr auto; gap: .4rem; align-items: center; font-size: .75rem; }
 .distribution-row > span:first-child { overflow-wrap: anywhere; }
 .result-metrics { display: grid; gap: .4rem; margin-bottom: .9rem; }
+.ai-builder-panel { padding: 1rem 1.2rem; border-bottom: 1px solid var(--line); background: var(--surface); }
+.ai-builder-panel .field { max-width: 800px; }
+.ai-preview { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 8px; }
+.ai-preview h3 { margin-top: 0; }
+.ai-json-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+.ai-json-compare pre { max-height: 320px; overflow: auto; padding: .7rem; background: #f4f6f4; font-size: .72rem; }
+.ai-marker { margin: .5rem 1.2rem; }
 @media (max-width: 900px) {
+  .ai-json-compare { grid-template-columns: 1fr; }
   .workspace { display: block; height: auto; }
   .workspace-panel { display: none; overflow: visible; border: 0; padding: 1rem; }
   .workspace-panel.active { display: block; }

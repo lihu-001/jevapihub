@@ -12,5 +12,5 @@ export default async function CloudBuilderPage({ params }: { params: Promise<{ i
     throw error;
   });
   if (project.interface.ownerId !== userId || !project.manifest) notFound();
-  return <Builder initialManifest={project.manifest} cloudId={project.interface.id} canCloudSave initialVisibility={project.interface.visibility as "private" | "unlisted" | "public"} />;
+  return <Builder initialManifest={project.manifest} cloudId={project.interface.id} canCloudSave initialAiGenerated={project.aiGenerated} initialVisibility={project.interface.visibility as "private" | "unlisted" | "public"} />;
 }

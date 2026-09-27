@@ -36,7 +36,7 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
     return row;
   }
   return {
-    async create(ownerId: string, rawManifest: unknown) {
+    async create(ownerId: string, rawManifest: unknown, aiGenerated = false) {
       const manifest = draftManifest(rawManifest);
       try {
         return await db.transaction(async (tx) => {
@@ -44,7 +44,7 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
             ownerId, name: manifest.metadata.name, slug: manifest.metadata.slug,
             description: manifest.metadata.description, category: manifest.metadata.category, language: manifest.metadata.language,
           }).returning();
-          await tx.insert(schema.interfaceDrafts).values({ interfaceId: row.id, manifestJson: manifest });
+          await tx.insert(schema.interfaceDrafts).values({ interfaceId: row.id, manifestJson: manifest, aiGenerated });
           return row;
         });
       } catch (error) {
@@ -63,18 +63,18 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
       if (!isVisible(row, viewerId)) throw new InterfaceError("INTERFACE_NOT_FOUND", 404);
       if (row.ownerId === viewerId) {
         const [draft] = await db.select().from(schema.interfaceDrafts).where(eq(schema.interfaceDrafts.interfaceId, id)).limit(1);
-        return { interface: row, manifest: draft ? parseManifest(draft.manifestJson) : null, draft: true };
+        return { interface: row, manifest: draft ? parseManifest(draft.manifestJson) : null, draft: true, aiGenerated: draft?.aiGenerated ?? false };
       }
       const [version] = await db.select().from(schema.interfaceVersions).where(eq(schema.interfaceVersions.id, row.publishedVersionId!)).limit(1);
       if (!version || version.interfaceId !== row.id) throw new InterfaceError("INTERFACE_NOT_FOUND", 404);
-      return { interface: row, manifest: parseManifest(version.manifestJson), draft: false };
+      return { interface: row, manifest: parseManifest(version.manifestJson), draft: false, aiGenerated: false };
     },
-    async saveDraft(id: string, ownerId: string, rawManifest: unknown) {
+    async saveDraft(id: string, ownerId: string, rawManifest: unknown, aiGenerated = false) {
       await requireOwner(id, ownerId);
       const manifest = draftManifest(rawManifest);
       try {
         await db.transaction(async (tx) => {
-          await tx.update(schema.interfaceDrafts).set({ manifestJson: manifest, updatedAt: new Date() }).where(eq(schema.interfaceDrafts.interfaceId, id));
+          await tx.update(schema.interfaceDrafts).set({ manifestJson: manifest, aiGenerated, updatedAt: new Date() }).where(eq(schema.interfaceDrafts.interfaceId, id));
           await tx.update(schema.interfaces).set({ name: manifest.metadata.name, slug: manifest.metadata.slug,
             description: manifest.metadata.description, category: manifest.metadata.category, language: manifest.metadata.language,
             updatedAt: new Date(),

@@ -6,7 +6,7 @@ export async function PUT(request: Request, context: Context) {
   try {
     const id = idSchema.parse((await context.params).id);
     const body = manifestBodySchema.parse(await jsonBody(request));
-    await service().saveDraft(id, await ownerId(), body.manifest);
+    await service().saveDraft(id, await ownerId(), body.manifest, body.aiGenerated);
     return json({ ok: true });
   } catch (error) { return handleCloudError(error); }
 }

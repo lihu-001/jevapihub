@@ -8,7 +8,7 @@ import { createInterfaceService, InterfaceError } from "./service";
 
 export const idSchema = z.uuid();
 export const visibilitySchema = z.enum(["private", "unlisted", "public"]);
-export const manifestBodySchema = z.object({ manifest: z.unknown() }).strict();
+export const manifestBodySchema = z.object({ manifest: z.unknown(), aiGenerated: z.boolean().optional() }).strict();
 export const noStoreHeaders = { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" };
 
 export function service() { return createInterfaceService(getDatabase()); }
