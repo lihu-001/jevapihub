@@ -34,6 +34,8 @@ npm run test:e2e
 npm run build
 ```
 
+需要真实数据库的云端浏览器闭环测试使用**独立、可丢弃**的 PostgreSQL 测试库：设置 `E2E_DATABASE_URL`，对该库执行 `npm run db:migrate`（此命令读取 `DATABASE_URL`，请将其临时指向同一测试库），然后运行 `npm run test:e2e`。测试会在库中创建用户和不可变版本，不会清理这些记录；未设置 `E2E_DATABASE_URL` 时该组用例自动跳过。此测试使用签名测试会话验证云端流程；GitHub/Google 的真实 OAuth 回调仍需另行配置并验收。
+
 游客可打开 `/builder/new` 或 `/playground` 创建并运行 Manifest，也可在本机保存、导入和导出 JSON。登录用户可在 `/me/interfaces` 管理云端 Draft、发布不可变版本和查看历史。`POST /api/runtime/playground` 将请求转给固定的 TypeSafe System One 端点；Saved Runtime 从数据库加载版本 Manifest，只接受 `inputs`。TypeSafe API Key 默认只留在页面内存；勾选会话记住后才写入 `sessionStorage`。数据库没有 Key、state 或 raw answer 字段。
 
 公共 Hub 位于 `/hub`。公开版本支持搜索、筛选、排序、试运行和 Star；登录用户可以 Fork 指定版本到自己的 Draft。Unlisted 版本可通过详情链接访问，但不会进入公共搜索；Private 版本只有作者可访问。管理员可在详情页设置 Featured。保存版本的成功运行只记录版本 ID、模型、token 数与耗时等元数据，用于运行次数统计。
