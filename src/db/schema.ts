@@ -30,6 +30,7 @@ export const interfaces = pgTable("interfaces", {
   forkedFromInterfaceId: uuid("forked_from_interface_id"),
   forkedFromVersionId: uuid("forked_from_version_id"),
   publishedVersionId: uuid("published_version_id"),
+  featured: boolean("featured").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [uniqueIndex("interfaces_owner_slug_unique").on(table.ownerId, table.slug)]);

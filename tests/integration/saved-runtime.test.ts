@@ -21,6 +21,7 @@ describe("Saved Runtime route", () => {
       await client.exec(readFileSync("src/db/migrations/0000_foundation.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0001_oauth_accounts.sql", "utf8"));
       await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
+      await client.exec(readFileSync("src/db/migrations/0003_interface_hub.sql", "utf8"));
       const db = drizzle(client, { schema });
       holder.db = db;
       const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
@@ -53,6 +54,11 @@ describe("Saved Runtime route", () => {
       expect(result.headers.get("Cache-Control")).toBe("no-store");
       expect((await result.text())).not.toContain("TEST_SECRET_TYPESAFE_KEY_DO_NOT_STORE_123456");
       expect(fetcher).toHaveBeenCalledOnce();
+      const events = await db.select().from(schema.runEvents);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ interfaceId: project.id, interfaceVersionId: version.id, success: true,
+        providerModel: "jev-1.13.0", inputTokens: 10, outputTokens: 2 });
+      expect(JSON.stringify(events)).not.toContain("TEST_SECRET_TYPESAFE_KEY_DO_NOT_STORE_123456");
     } finally { await client.close(); }
   });
 });

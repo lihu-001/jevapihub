@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Home() {
   return <main className="home-page">
-    <div className="home-top"><strong>Jev Interface Hub</strong><span><Link href="/me/interfaces">我的 Interface</Link>　/　<Link href="/login">登录</Link></span></div>
+    <div className="home-top"><strong>Jev Interface Hub</strong><span><Link href="/hub">浏览 Hub</Link>　/　<Link href="/me/interfaces">我的 Interface</Link>　/　<Link href="/login">登录</Link></span></div>
     <div className="home-intro">
       <span className="eyebrow">一个 Runtime · 无限 Interface</span>
       <h1>把判断任务，定义为可运行的 Interface。</h1>
