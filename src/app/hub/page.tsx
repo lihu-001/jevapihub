@@ -10,6 +10,17 @@ type Query = { search?: string | string[]; category?: string | string[]; tag?: s
 function single(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Query> }) {
+  if (!process.env.DATABASE_URL) {
+    return <main className="content-page">
+      <nav><Link href="/">← Jev Interface Hub</Link></nav>
+      <section className="login-card">
+        <span className="eyebrow">PUBLIC INTERFACES</span>
+        <h1>Hub 尚未启用</h1>
+        <p className="muted">当前环境未配置数据库。配置 DATABASE_URL 并运行数据库迁移后，即可浏览公开 Interface。</p>
+        <Link className="button button-primary" href="/builder/new">打开本机 Builder ↗</Link>
+      </section>
+    </main>;
+  }
   const raw = await searchParams;
   const query = { search: single(raw.search), category: single(raw.category), tag: single(raw.tag),
     language: single(raw.language), sort: single(raw.sort), featured: single(raw.featured), page: single(raw.page) };

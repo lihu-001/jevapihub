@@ -4,6 +4,8 @@ import { drizzle } from "drizzle-orm/pglite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as schema from "../../src/db/schema";
 import { createInterfaceService } from "../../src/lib/interfaces/service";
+import { prepareBuilderRequest } from "../../src/lib/manifest/builder-request";
+import { createBuilderDefaultManifest } from "../../src/lib/manifest/starter";
 import { getInterfaceStats } from "../../src/lib/stats/service";
 import { manifest } from "../fixture";
 
@@ -17,6 +19,38 @@ import { GET as exportVersion } from "../../src/app/api/interfaces/[id]/versions
 afterEach(() => { vi.unstubAllGlobals(); holder.db = null; });
 
 describe("Saved Runtime route", () => {
+  it("uses a Hub visitor's input for a version published from Builder", async () => {
+    const client = new PGlite();
+    try {
+      for (const migration of ["0000_foundation", "0001_oauth_accounts", "0002_ai_builder", "0003_interface_hub", "0004_admin_categories"]) {
+        await client.exec(readFileSync(`src/db/migrations/${migration}.sql`, "utf8"));
+      }
+      const db = drizzle(client, { schema });
+      holder.db = db;
+      const [owner] = await db.insert(schema.users).values({ name: "Builder author" }).returning();
+      const draft = createBuilderDefaultManifest();
+      draft.questions = { assessment: { type: "noul", instructions: "是否相关？" } };
+      draft.resultView.order = ["assessment"];
+      const { prepared } = prepareBuilderRequest(draft, "作者的示例", "");
+      const service = createInterfaceService(db);
+      const project = await service.create(owner.id, prepared);
+      const version = await service.publish(project.id, owner.id, "public");
+      expect(version.manifestJson).toMatchObject({ stateTemplate: { $input: "content" }, inputs: [{ defaultValue: "作者的示例" }] });
+
+      const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+        expect(JSON.parse(init.body as string)).toMatchObject({ state: "访客自己的内容" });
+        return new Response(JSON.stringify({ model: "jev-latest", answers: { assessment: { type: "noul", noul: 0.9 } }, usage: { input_tokens: 1, output_tokens: 1 } }));
+      });
+      vi.stubGlobal("fetch", fetcher);
+      const response = await POST(new Request("http://localhost/api/runtime/interfaces/x/versions/y", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Typesafe-Api-Key": "TEST_KEY" },
+        body: JSON.stringify({ inputs: { content: "访客自己的内容" } }),
+      }), { params: Promise.resolve({ interfaceId: project.id, versionId: version.id }) });
+      expect(response.status).toBe(200);
+      expect(fetcher).toHaveBeenCalledOnce();
+    } finally { await client.close(); }
+  });
+
   it("loads immutable questions from DB and rejects client question override", async () => {
     const client = new PGlite();
     try {

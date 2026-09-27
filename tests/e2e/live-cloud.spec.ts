@@ -36,12 +36,15 @@ test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 F
     await authorPage.goto("/builder/new");
     await expect(authorPage.getByRole("button", { name: "保存到云端" })).toBeVisible();
     await authorPage.getByRole("textbox", { name: "Interface 名称" }).fill("E2E Published Interface");
+    await authorPage.getByRole("textbox", { name: "State 内容" }).fill("guest content");
     const createdResponse = authorPage.waitForResponse((response) => response.url().endsWith("/api/interfaces") && response.request().method() === "POST");
     await authorPage.getByRole("button", { name: "保存到云端" }).click();
     const created = await (await createdResponse).json() as { interface: { id: string } };
     const interfaceId = created.interface.id;
     await expect(authorPage).toHaveURL(new RegExp(`/builder/${interfaceId}$`));
     await authorPage.getByRole("button", { name: "发布版本" }).click();
+    await expect(authorPage.getByRole("heading", { name: "Hub 试运行预览" })).toBeVisible();
+    await expect(authorPage.getByRole("textbox", { name: /待分析内容/ })).toHaveValue("guest content");
     await authorPage.getByRole("combobox", { name: "可见性" }).selectOption("public");
     await authorPage.getByRole("button", { name: "确认发布" }).click();
     await expect(authorPage.locator(".status-line")).toContainText("已发布 v1");
@@ -49,12 +52,8 @@ test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 F
     const firstVersion = ((await versionsV1.json()) as { versions: { id: string; versionNumber: number }[] }).versions[0];
     expect(firstVersion.versionNumber).toBe(1);
 
-    await authorPage.getByRole("button", { name: "Raw Manifest" }).click();
-    const editor = authorPage.getByRole("textbox", { name: "完整 Manifest JSON" });
-    const draft = JSON.parse(await editor.inputValue()) as { questions: { assessment: { instructions: string } } };
-    draft.questions.assessment.instructions = "Published v2 instruction";
-    await editor.fill(JSON.stringify(draft));
-    await authorPage.getByRole("button", { name: "应用 Manifest" }).click();
+    if ((authorPage.viewportSize()?.width ?? 1200) < 900) await authorPage.getByRole("button", { name: "Questions", exact: true }).click();
+    await authorPage.getByRole("textbox", { name: "is_urgent JSON" }).fill(JSON.stringify({ type: "noul", instructions: "Published v2 instruction" }, null, 2));
     await authorPage.getByRole("button", { name: "发布版本" }).click();
     await authorPage.getByRole("button", { name: "确认发布" }).click();
     await expect(authorPage.locator(".status-line")).toContainText("已发布 v2");
@@ -62,24 +61,29 @@ test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 F
     const secondVersion = ((await versionsV2.json()) as { versions: { id: string; versionNumber: number }[] }).versions[0];
     expect(secondVersion.versionNumber).toBe(2);
     const original = await authorContext.request.get(`/api/interfaces/${interfaceId}/versions/${firstVersion.id}`);
-    const originalBody = await original.json() as { version: { manifestJson: { questions: { assessment: { instructions: string } } } } };
-    expect(originalBody.version.manifestJson.questions.assessment.instructions).not.toBe("Published v2 instruction");
+    const originalBody = await original.json() as { version: { manifestJson: { questions: { is_urgent: { instructions: string } } } } };
+    expect(originalBody.version.manifestJson.questions.is_urgent.instructions).not.toBe("Published v2 instruction");
 
     const guestPage = await guestContext.newPage();
     await guestPage.route(`**/api/runtime/interfaces/${interfaceId}/versions/${secondVersion.id}`, async (route) => {
       expect(route.request().headers()["x-typesafe-api-key"]).toBe("E2E_TEST_TYPESAFE_KEY");
-      expect(route.request().postDataJSON()).toEqual({ inputs: { content: "guest content" } });
+      expect(route.request().postDataJSON()).toEqual({ inputs: { content: "访客自己的内容" } });
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ result: {
-        model: "jev-1.13.0", answers: { assessment: { type: "noul", noul: 0.8 } }, usage: { input_tokens: 1, output_tokens: 1 },
+        model: "jev-1.13.0", answers: {
+          department: { type: "choice", choice: "支付", probabilities: { "支付": 0.8, "技术": 0.1, "销售": 0.1 }, confidence: 0.8 },
+          frustration: { type: "score", score: 1, legend: { "0": "情绪平静，仅陈述事实", "1": "感到沮丧但态度客气", "2": "非常愤怒，言辞激烈" }, probabilities: { "0": 0.2, "1": 0.7, "2": 0.1 }, confidence: 0.7 },
+          is_urgent: { type: "noul", noul: 0.8 },
+        }, usage: { input_tokens: 1, output_tokens: 1 },
       }, metrics: [] }) });
     });
     await guestPage.goto(`/i/${authorId}/new-interface`);
     await expect(guestPage.getByRole("heading", { name: "E2E Published Interface" })).toBeVisible();
+    await expect(guestPage.getByRole("textbox", { name: /待分析内容/ })).toHaveValue("guest content");
+    await guestPage.getByRole("textbox", { name: /待分析内容/ }).fill("访客自己的内容");
     await guestPage.getByRole("button", { name: "设置 API Key" }).click();
     await guestPage.getByLabel("你的 API Key").fill("E2E_TEST_TYPESAFE_KEY");
     await guestPage.getByRole("button", { name: "完成" }).click();
-    await guestPage.getByLabel("待分析内容 *").fill("guest content");
-    await guestPage.getByRole("button", { name: "运行 Interface" }).click();
+    await guestPage.getByRole("button", { name: "运行", exact: true }).click();
     await expect(guestPage.getByText("0.800")).toBeVisible();
     await guestPage.reload();
     await expect(guestPage.getByRole("button", { name: "设置 API Key" })).toBeVisible();
@@ -94,7 +98,7 @@ test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 F
     expect(fork.interface).toMatchObject({ ownerId: readerId, forkedFromInterfaceId: interfaceId, forkedFromVersionId: secondVersion.id });
     expect(fork.manifest).toBeTruthy();
     const source = await authorContext.request.get(`/api/interfaces/${interfaceId}/versions/${secondVersion.id}`);
-    expect((await source.json() as { version: { manifestJson: { questions: { assessment: { instructions: string } } } } }).version.manifestJson.questions.assessment.instructions).toBe("Published v2 instruction");
+    expect((await source.json() as { version: { manifestJson: { questions: { is_urgent: { instructions: string } } } } }).version.manifestJson.questions.is_urgent.instructions).toBe("Published v2 instruction");
   } finally {
     await authorContext.close(); await readerContext.close(); await guestContext.close();
   }

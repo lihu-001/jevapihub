@@ -4,23 +4,30 @@ import { useState } from "react";
 import { evaluateExpectations } from "../../lib/eval/evaluate";
 import type { Manifest } from "../../lib/manifest/types";
 import { parseManifest } from "../../lib/manifest/validate";
+import { readStateEditor } from "../../lib/manifest/state-editor";
 import { parseTypeSafeResponse } from "../../lib/typesafe/response";
 
 type TestCase = NonNullable<Manifest["examples"]>[number];
 type Outcome = { name: string; passed: boolean; failures: string[] };
 
-export function TestSuitePanel({ manifest, stateText, apiKey, onOpenKey, onChange }: {
-  manifest: Manifest; stateText: string; apiKey: string; onOpenKey: () => void; onChange: (cases: TestCase[]) => void;
+export function TestSuitePanel({ manifest, stateText, apiKey, onOpenKey, onChange, resetVersion }: {
+  manifest: Manifest; stateText: string; apiKey: string; onOpenKey: () => void; onChange: (cases: TestCase[]) => void; resetVersion?: number;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
+  const [previousResetVersion, setPreviousResetVersion] = useState(resetVersion);
+  if (previousResetVersion !== resetVersion) {
+    setPreviousResetVersion(resetVersion);
+    setError("");
+    setOutcomes([]);
+  }
   const cases = manifest.examples ?? [];
 
   function update(index: number, value: TestCase) {
     try {
       const next = cases.map((item, position) => position === index ? value : item);
-      parseManifest({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown, examples: next });
+      parseManifest({ ...manifest, stateTemplate: readStateEditor(stateText, manifest.stateTemplate), examples: next });
       onChange(next); setError(""); setOutcomes([]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "测试用例无效"); }
   }
@@ -31,7 +38,7 @@ export function TestSuitePanel({ manifest, stateText, apiKey, onOpenKey, onChang
     if (!apiKey) { onOpenKey(); setError("请先设置 TypeSafe API Key"); return; }
     setBusy(true); setError(""); setOutcomes([]);
     try {
-      const validated = parseManifest({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown });
+      const validated = parseManifest({ ...manifest, stateTemplate: readStateEditor(stateText, manifest.stateTemplate) });
       const executionManifest = { ...validated, examples: [] };
       const results: Outcome[] = [];
       for (const item of runnable) {

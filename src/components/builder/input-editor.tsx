@@ -2,7 +2,7 @@
 
 import type { InputDefinition } from "../../lib/manifest/types";
 
-type Props = { inputs: InputDefinition[]; onChange: (inputs: InputDefinition[]) => void };
+type Props = { inputs: InputDefinition[]; autoLinked?: boolean; onChange: (inputs: InputDefinition[]) => void };
 
 function nextId(inputs: InputDefinition[]) {
   let count = 1;
@@ -10,7 +10,7 @@ function nextId(inputs: InputDefinition[]) {
   return `field${count}`;
 }
 
-export function InputEditor({ inputs, onChange }: Props) {
+export function InputEditor({ inputs, autoLinked = true, onChange }: Props) {
   function update(index: number, change: Partial<InputDefinition>) {
     onChange(inputs.map((input, position) => {
       if (position !== index) return input;
@@ -28,21 +28,24 @@ export function InputEditor({ inputs, onChange }: Props) {
     <div className="section-head"><h2 id="input-title">输入字段</h2><button className="button button-small" type="button" onClick={() => onChange([...inputs, {
       id: nextId(inputs), label: "新字段", component: "text", valueType: "string", required: false,
     }])}>＋ 添加字段</button></div>
+    <p className="field-hint">输入字段是运行时要填写的内容。给字段起一个看得懂的名称；{autoLinked ? "字段会自动接入 State。" : "当前 State 不会自动接入新字段，请检查下方 State 设置。"}</p>
     {inputs.length === 0 && <p className="muted">还没有输入字段。可以先添加一个文本字段。</p>}
     {inputs.map((input, index) => <div className="editor-card" key={index}>
       <div className="editor-card-header"><strong>{input.label || input.id || `字段 ${index + 1}`}</strong><button className="button button-small button-danger" type="button" onClick={() => onChange(inputs.filter((_, position) => position !== index))}>删除</button></div>
+      <label className="field"><span>显示名称</span><input value={input.label} onChange={(event) => update(index, { label: event.target.value })} /></label>
       <div className="field-row">
-        <label className="field"><span>字段 ID</span><input value={input.id} onChange={(event) => update(index, { id: event.target.value })} className="mono" /></label>
-        <label className="field"><span>显示名称</span><input value={input.label} onChange={(event) => update(index, { label: event.target.value })} /></label>
-      </div>
-      <div className="field-row">
-        <label className="field"><span>控件类型</span><select value={input.component} onChange={(event) => changeComponent(index, event.target.value as InputDefinition["component"])}>
-          <option value="text">单行文本</option><option value="textarea">多行文本</option><option value="number">数字</option><option value="boolean">布尔值</option><option value="select">下拉选项</option><option value="json">JSON</option>
+        <label className="field"><span>填写控件</span><select value={input.component} onChange={(event) => changeComponent(index, event.target.value as InputDefinition["component"])}>
+          <optgroup label="常用"><option value="text">单行文本</option><option value="textarea">多行文本</option></optgroup>
+          <optgroup label="更多输入控件"><option value="number">数字</option><option value="boolean">布尔值</option><option value="select">下拉选项</option><option value="json">JSON</option></optgroup>
         </select></label>
         <label className="field"><span>说明</span><input value={input.description ?? ""} onChange={(event) => update(index, { description: event.target.value })} /></label>
       </div>
       <label className="checkline"><input type="checkbox" checked={input.required} onChange={(event) => update(index, { required: event.target.checked })} />必填</label>
       {(input.component === "text" || input.component === "textarea") && <label className="field"><span>最大字符数</span><input type="number" min="1" value={input.constraints?.maxLength ?? ""} onChange={(event) => update(index, { constraints: { ...input.constraints, maxLength: event.target.value ? Number(event.target.value) : undefined } })} /></label>}
+      <details className="advanced-input"><summary>高级设置：字段 ID</summary>
+        <p className="field-hint">字段 ID 是导出配置和多字段 State 的内部名称，通常不用修改。</p>
+        <label className="field"><span>字段 ID</span><input value={input.id} onChange={(event) => update(index, { id: event.target.value })} className="mono" /></label>
+      </details>
       {input.component === "select" && <div className="stack">
         <span className="field-hint">选项值会作为输入传给 State</span>
         {(input.options ?? []).map((option, optionIndex) => <div className="option-line" key={optionIndex}>

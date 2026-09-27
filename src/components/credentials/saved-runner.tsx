@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Manifest } from "../../lib/manifest/types";
+import { formatStateEditor } from "../../lib/manifest/state-editor";
 import { CredentialDialog } from "./credential-dialog";
 import { RunPanel } from "../builder/run-panel";
 
@@ -32,7 +33,7 @@ export function SavedRunner({ manifest, interfaceId, versionId }: { manifest: Ma
   }
   function clear() { setApiKey(""); setRemember(false); sessionStorage.removeItem(SESSION_KEY); }
   return <>
-    <RunPanel manifest={manifest} stateText={JSON.stringify(manifest.stateTemplate)} apiKey={apiKey} onOpenKey={() => setOpen(true)}
+    <RunPanel manifest={manifest} stateText={formatStateEditor(manifest.stateTemplate)} apiKey={apiKey} onOpenKey={() => setOpen(true)}
       runPath={`/api/runtime/interfaces/${interfaceId}/versions/${versionId}`} />
     <CredentialDialog open={open} onClose={() => setOpen(false)} apiKey={apiKey} onKeyChange={changeKey}
       rememberSession={remember} onRememberChange={changeRemember} onClear={clear} />
