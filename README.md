@@ -1,6 +1,6 @@
 # Jev Interface Hub
 
-这是通用 TypeSafe/Jev Interface Runtime 的 Phase 0 基础工程。产品与技术要求见 `Jev_Interface_Hub_PRD_Technical_Spec.md`，Manifest 的标准结构见 `jev-interface-manifest.schema.json`。
+这是通用 TypeSafe/Jev Interface Runtime 与游客 Playground。产品与技术要求见 `Jev_Interface_Hub_PRD_Technical_Spec.md`，Manifest 的标准结构见 `jev-interface-manifest.schema.json`。
 
 ## 本地启动
 
@@ -20,7 +20,8 @@ npm run typecheck
 npm run lint
 npm run test:unit
 npm run test:integration
+npm run test:e2e
 npm run build
 ```
 
-Phase 0 通过 `src/lib/runtime/run.ts` 的 `runManifest()` 暴露 Runtime 核心函数。HTTP Runtime 路由和 Builder UI 属于 Phase 1。TypeSafe API Key 只作为调用时的临时参数传入；数据库没有 Key、state 或 raw answer 字段。
+游客可打开 `/builder/new` 或 `/playground` 创建并运行 Manifest，也可在本机保存、导入和导出 JSON。`POST /api/runtime/playground` 将请求转给固定的 TypeSafe System One 端点。TypeSafe API Key 默认只留在页面内存；勾选会话记住后才写入 `sessionStorage`。数据库没有 Key、state 或 raw answer 字段。云端保存、登录和发布属于后续阶段。

@@ -1,0 +1,216 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { createStarterManifest } from "../../lib/manifest/starter";
+import type { InputDefinition, Manifest, Question } from "../../lib/manifest/types";
+import { parseManifest, ManifestValidationError } from "../../lib/manifest/validate";
+import { CredentialDialog } from "../credentials/credential-dialog";
+import { InputEditor } from "./input-editor";
+import { QuestionEditor } from "./question-editor";
+import { RunPanel } from "./run-panel";
+
+const DRAFT_KEY = "jev-interface-local-draft";
+const SESSION_KEY = "jev-typesafe-session-key";
+const QUESTION_ID = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
+
+function issueMessage(error: unknown) {
+  if (error instanceof ManifestValidationError) return error.issues.join("；");
+  return error instanceof Error ? error.message : "操作失败";
+}
+
+function nextQuestionId(questions: Manifest["questions"]) {
+  let count = 1;
+  while (Object.hasOwn(questions, `question_${count}`)) count++;
+  return `question_${count}`;
+}
+
+export function Builder() {
+  const [manifest, setManifest] = useState<Manifest>(createStarterManifest);
+  const [stateText, setStateText] = useState(() => JSON.stringify(createStarterManifest().stateTemplate, null, 2));
+  const [apiKey, setApiKey] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [keyOpen, setKeyOpen] = useState(false);
+  const [tab, setTab] = useState<"inputs" | "questions" | "test">("inputs");
+  const [status, setStatus] = useState("");
+  const [rawOpen, setRawOpen] = useState(false);
+  const [rawText, setRawText] = useState("");
+  const dragged = useRef<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      try {
+        const savedKey = sessionStorage.getItem(SESSION_KEY);
+        if (savedKey) { setApiKey(savedKey); setRemember(true); }
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) {
+          const parsed = parseManifest(JSON.parse(saved) as unknown);
+          setManifest(parsed);
+          setStateText(JSON.stringify(parsed.stateTemplate, null, 2));
+          setStatus("已载入本机草稿");
+        }
+      } catch { setStatus("本机草稿无法读取，可继续新建"); }
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, []);
+
+  function changeKey(value: string) {
+    setApiKey(value);
+    if (remember) {
+      if (value) sessionStorage.setItem(SESSION_KEY, value);
+      else sessionStorage.removeItem(SESSION_KEY);
+    }
+  }
+  function changeRemember(value: boolean) {
+    setRemember(value);
+    if (value && apiKey) sessionStorage.setItem(SESSION_KEY, apiKey);
+    else sessionStorage.removeItem(SESSION_KEY);
+  }
+  function clearKey() { setApiKey(""); setRemember(false); sessionStorage.removeItem(SESSION_KEY); }
+  function currentManifest() { return parseManifest({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown }); }
+
+  function handleInputs(next: InputDefinition[]) {
+    const added = next.find((input) => !manifest.inputs.some((existing) => existing.id === input.id));
+    if (added) {
+      try {
+        const template = JSON.parse(stateText) as unknown;
+        if (template && typeof template === "object" && !Array.isArray(template) && !("$input" in template)) {
+          setStateText(JSON.stringify({ ...template, [added.id]: { $input: added.id } }, null, 2));
+        }
+      } catch { /* Keep the user's invalid JSON for manual correction. */ }
+    }
+    setManifest((current) => ({ ...current, inputs: next }));
+  }
+  function addQuestion(type: Question["type"]) {
+    const id = nextQuestionId(manifest.questions);
+    const instructions = "请描述要判断的问题";
+    const question: Question = type === "noul" ? { type, instructions }
+      : type === "choice" ? { type, instructions, criteria: { option_a: "选项 A", option_b: "选项 B" } }
+        : { type, instructions, criteria: ["低", "高"] };
+    setManifest((current) => ({ ...current, questions: { ...current.questions, [id]: question }, resultView: { ...current.resultView, order: [...current.resultView.order, id] } }));
+  }
+  function renameQuestion(id: string, nextId: string) {
+    if (!QUESTION_ID.test(nextId) || (nextId !== id && Object.hasOwn(manifest.questions, nextId))) {
+      setStatus("Question ID 必须唯一，且以字母开头，只能包含字母、数字、_、-");
+      return;
+    }
+    const questions = Object.fromEntries(Object.entries(manifest.questions).map(([key, value]) => [key === id ? nextId : key, value]));
+    setManifest((current) => ({ ...current, questions, resultView: { ...current.resultView, order: current.resultView.order.map((key) => key === id ? nextId : key) },
+      postprocess: current.postprocess?.kind === "weighted_score" ? { ...current.postprocess, metrics: current.postprocess.metrics.map((metric) => ({ ...metric, sources: metric.sources.map((source) => source.questionId === id ? { ...source, questionId: nextId } : source) })) } : current.postprocess,
+    }));
+    setStatus("已更新 Question ID");
+  }
+  function removeQuestion(id: string) {
+    setManifest((current) => ({ ...current, questions: Object.fromEntries(Object.entries(current.questions).filter(([key]) => key !== id)), resultView: { ...current.resultView, order: current.resultView.order.filter((key) => key !== id) } }));
+  }
+  function duplicateQuestion(id: string) {
+    const nextId = nextQuestionId(manifest.questions);
+    setManifest((current) => ({ ...current,
+      questions: { ...current.questions, [nextId]: structuredClone(current.questions[id]) },
+      resultView: { ...current.resultView, order: [...current.resultView.order, nextId] },
+    }));
+  }
+  function reorderQuestion(id: string, target: string) {
+    if (id === target) return;
+    setManifest((current) => {
+      const order = current.resultView.order.filter((key) => key !== id);
+      const index = order.indexOf(target);
+      if (index < 0) return current;
+      order.splice(index, 0, id);
+      return { ...current, resultView: { ...current.resultView, order } };
+    });
+  }
+  function moveQuestion(id: string, direction: -1 | 1) {
+    const index = manifest.resultView.order.indexOf(id);
+    const target = manifest.resultView.order[index + direction];
+    if (target) reorderQuestion(direction === 1 ? target : id, direction === 1 ? id : target);
+  }
+  function applyAdvancedQuestion(id: string, value: unknown) {
+    const candidate = parseManifest({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown, questions: { ...manifest.questions, [id]: value } });
+    setManifest(candidate);
+    setStatus(`已应用 ${id} 的高级 JSON`);
+  }
+  function saveLocal() {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(currentManifest())); setStatus("已保存到本机浏览器"); }
+    catch (error) { setStatus(issueMessage(error)); }
+  }
+  function exportManifest() {
+    try {
+      const value = currentManifest();
+      const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${value.metadata.slug}.manifest.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      setStatus("Manifest 已导出");
+    } catch (error) { setStatus(issueMessage(error)); }
+  }
+  async function importManifest(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 512 * 1024) throw new Error("Manifest 文件不能超过 512 KB");
+      const value = parseManifest(JSON.parse(await file.text()) as unknown);
+      setManifest(value);
+      setStateText(JSON.stringify(value.stateTemplate, null, 2));
+      setStatus("Manifest 已导入");
+    } catch (error) { setStatus(issueMessage(error)); }
+    event.target.value = "";
+  }
+  function applyRaw() {
+    try {
+      const value = parseManifest(JSON.parse(rawText) as unknown);
+      setManifest(value);
+      setStateText(JSON.stringify(value.stateTemplate, null, 2));
+      setRawOpen(false);
+      setStatus("Raw Manifest 已应用");
+    } catch (error) { setStatus(issueMessage(error)); }
+  }
+
+  return <div className="builder-shell">
+    <header className="builder-header">
+      <Link className="brand" href="/">Jev / Interface Hub</Link>
+      <input className="name-input" aria-label="Interface 名称" value={manifest.metadata.name} onChange={(event) => setManifest((current) => ({ ...current, metadata: { ...current.metadata, name: event.target.value } }))} />
+      <div className="header-actions">
+        <button className="button button-small" type="button" onClick={() => setKeyOpen(true)}>{apiKey ? "TypeSafe · 已设置" : "TypeSafe · 未设置"}</button>
+        <button className="button button-small" type="button" onClick={saveLocal}>保存到本机</button>
+        <button className="button button-small" type="button" onClick={() => importInput.current?.click()}>导入</button>
+        <input ref={importInput} type="file" accept="application/json,.json" hidden onChange={importManifest} />
+        <button className="button button-small" type="button" onClick={exportManifest}>导出 JSON</button>
+        <button className="button button-small" type="button" onClick={() => { try { setRawText(JSON.stringify({ ...manifest, stateTemplate: JSON.parse(stateText) as unknown }, null, 2)); } catch { setRawText(JSON.stringify(manifest, null, 2)); } setRawOpen(!rawOpen); }}>Raw Manifest</button>
+      </div>
+    </header>
+    {rawOpen && <div className="raw-editor"><label className="field"><span>完整 Manifest JSON</span><textarea className="mono" rows={14} value={rawText} onChange={(event) => setRawText(event.target.value)} /></label><button className="button button-primary" type="button" onClick={applyRaw}>应用 Manifest</button></div>}
+    <nav className="mobile-tabs" aria-label="Builder 工作区">
+      {(["inputs", "questions", "test"] as const).map((item) => <button key={item} type="button" aria-pressed={tab === item} onClick={() => setTab(item)}>{item === "inputs" ? "Inputs / State" : item === "questions" ? "Questions" : "Test / Result"}</button>)}
+    </nav>
+    <div className="workspace">
+      <div className={`workspace-panel ${tab === "inputs" ? "active" : ""}`}><div className="panel-title"><h2>Inputs / State</h2><span>01</span></div>
+        <InputEditor inputs={manifest.inputs} onChange={handleInputs} />
+        <div className="divider" />
+        <section aria-labelledby="state-title"><div className="section-head"><h2 id="state-title">State Template</h2></div>
+          <p className="field-hint">使用 <code>{'{"$input":"字段 ID"}'}</code> 引用输入。可选输入为空时，对应字段会省略。</p>
+          <label className="field"><span>JSON 模板</span><textarea className="mono" rows={12} value={stateText} onChange={(event) => setStateText(event.target.value)} /></label>
+        </section>
+      </div>
+      <div className={`workspace-panel ${tab === "questions" ? "active" : ""}`}><div className="panel-title"><h2>Questions</h2><span>02</span></div>
+        <div className="section-head"><span className="field-hint">拖动卡片或使用方向按钮调整显示顺序。</span><div className="editor-card-actions">
+          <button className="button button-small" type="button" onClick={() => addQuestion("noul")}>＋ Noul</button>
+          <button className="button button-small" type="button" onClick={() => addQuestion("choice")}>＋ Choice</button>
+          <button className="button button-small" type="button" onClick={() => addQuestion("score")}>＋ Score</button>
+        </div></div>
+        {manifest.resultView.order.map((id) => manifest.questions[id] && <QuestionEditor key={id} id={id} question={manifest.questions[id]}
+          onRename={(nextId) => renameQuestion(id, nextId)}
+          onChange={(question) => setManifest((current) => ({ ...current, questions: { ...current.questions, [id]: question } }))}
+          onAdvancedSave={(value) => applyAdvancedQuestion(id, value)} onDuplicate={() => duplicateQuestion(id)} onRemove={() => removeQuestion(id)} onMove={(direction) => moveQuestion(id, direction)}
+          onDragStart={() => { dragged.current = id; }} onDrop={() => { if (dragged.current) reorderQuestion(dragged.current, id); dragged.current = null; }} />)}
+      </div>
+      <div className={`workspace-panel ${tab === "test" ? "active" : ""}`}><RunPanel manifest={manifest} stateText={stateText} apiKey={apiKey} onOpenKey={() => setKeyOpen(true)} /></div>
+    </div>
+    <div className="status-line" role="status" aria-live="polite">{status}</div>
+    <CredentialDialog open={keyOpen} onClose={() => setKeyOpen(false)} apiKey={apiKey} onKeyChange={changeKey} rememberSession={remember} onRememberChange={changeRemember} onClear={clearKey} />
+  </div>;
+}
