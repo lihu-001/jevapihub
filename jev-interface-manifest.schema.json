@@ -1,0 +1,588 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jev-interface-hub.local/schemas/jev-interface-manifest-v1.json",
+  "title": "Jev Interface Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "metadata",
+    "runtime",
+    "inputs",
+    "stateTemplate",
+    "questions",
+    "resultView"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "slug",
+        "description",
+        "category",
+        "tags",
+        "language"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "maxItems": 20,
+          "uniqueItems": true
+        },
+        "language": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 32
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "const": "typesafe"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 180000,
+          "default": 60000
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/input"
+      }
+    },
+    "stateTemplate": {
+      "$ref": "#/$defs/templateValue"
+    },
+    "questions": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 50,
+      "propertyNames": {
+        "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/question"
+      }
+    },
+    "postprocess": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/postprocessNone"
+        },
+        {
+          "$ref": "#/$defs/postprocessWeighted"
+        },
+        {
+          "$ref": "#/$defs/postprocessJsonLogic"
+        }
+      ],
+      "default": {
+        "kind": "none"
+      }
+    },
+    "resultView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "showRaw",
+        "showProbabilities",
+        "showConfidence",
+        "order"
+      ],
+      "properties": {
+        "showRaw": {
+          "type": "boolean"
+        },
+        "showProbabilities": {
+          "type": "boolean"
+        },
+        "showConfidence": {
+          "type": "boolean"
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "examples": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "inputs"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "entryValue": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entryValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/entryValue"
+          }
+        }
+      ]
+    },
+    "templateValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "$input"
+          ],
+          "properties": {
+            "$input": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/templateValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/templateValue"
+          },
+          "not": {
+            "required": [
+              "$input"
+            ]
+          }
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "component",
+        "valueType",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "component": {
+          "enum": [
+            "text",
+            "textarea",
+            "number",
+            "boolean",
+            "select",
+            "json"
+          ]
+        },
+        "valueType": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "json"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "placeholder": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "defaultValue": {},
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "value"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "value": {
+                "$ref": "#/$defs/entryValue"
+              }
+            }
+          },
+          "maxItems": 255
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minLength": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "maximum": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "noulQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "instructions"
+      ],
+      "properties": {
+        "type": {
+          "const": "noul"
+        },
+        "instructions": {
+          "$ref": "#/$defs/entryValue"
+        },
+        "criteria": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "true": {
+              "$ref": "#/$defs/entryValue"
+            },
+            "false": {
+              "$ref": "#/$defs/entryValue"
+            }
+          }
+        }
+      }
+    },
+    "choiceQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "instructions",
+        "criteria"
+      ],
+      "properties": {
+        "type": {
+          "const": "choice"
+        },
+        "instructions": {
+          "$ref": "#/$defs/entryValue"
+        },
+        "criteria": {
+          "type": "object",
+          "minProperties": 2,
+          "maxProperties": 255,
+          "additionalProperties": {
+            "$ref": "#/$defs/entryValue"
+          }
+        }
+      }
+    },
+    "scoreQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "instructions",
+        "criteria"
+      ],
+      "properties": {
+        "type": {
+          "const": "score"
+        },
+        "instructions": {
+          "$ref": "#/$defs/entryValue"
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/entryValue"
+          }
+        }
+      }
+    },
+    "question": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/noulQuestion"
+        },
+        {
+          "$ref": "#/$defs/choiceQuestion"
+        },
+        {
+          "$ref": "#/$defs/scoreQuestion"
+        }
+      ]
+    },
+    "postprocessNone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "const": "none"
+        }
+      }
+    },
+    "weightedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "questionId",
+        "weight",
+        "transform"
+      ],
+      "properties": {
+        "questionId": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "transform": {
+          "enum": [
+            "score_percent",
+            "noul_percent",
+            "inverse_noul_percent"
+          ]
+        }
+      }
+    },
+    "weightedMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "scale",
+        "sources"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "precision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "default": 1
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/weightedSource"
+          }
+        }
+      }
+    },
+    "postprocessWeighted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "metrics"
+      ],
+      "properties": {
+        "kind": {
+          "const": "weighted_score"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/weightedMetric"
+          },
+          "maxItems": 20
+        }
+      }
+    },
+    "postprocessJsonLogic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "outputs"
+      ],
+      "properties": {
+        "kind": {
+          "const": "jsonlogic"
+        },
+        "outputs": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "expression"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "expression": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}
