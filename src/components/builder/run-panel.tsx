@@ -9,7 +9,7 @@ import { parseTypeSafeResponse, type TypeSafeResponse } from "../../lib/typesafe
 import type { WeightedResult } from "../../lib/postprocess/weighted-score";
 import { ResultView } from "../results/result-view";
 
-type Props = { manifest: Manifest; stateText: string; apiKey: string; onOpenKey: () => void };
+type Props = { manifest: Manifest; stateText: string; apiKey: string; onOpenKey: () => void; runPath?: string };
 type RunOutput = { manifest: Manifest; result: TypeSafeResponse; metrics: WeightedResult[] };
 
 function decodeInput(input: InputDefinition, raw: string | boolean | undefined): JsonValue | undefined {
@@ -25,7 +25,7 @@ function decodeInput(input: InputDefinition, raw: string | boolean | undefined):
   return raw;
 }
 
-export function RunPanel({ manifest, stateText, apiKey, onOpenKey }: Props) {
+export function RunPanel({ manifest, stateText, apiKey, onOpenKey, runPath }: Props) {
   const [draftValues, setDraftValues] = useState<Record<string, string | boolean>>({});
   const [output, setOutput] = useState<RunOutput | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,10 +50,10 @@ export function RunPanel({ manifest, stateText, apiKey, onOpenKey }: Props) {
     if (!apiKey) { onOpenKey(); setError("请先输入 TypeSafe API Key"); return; }
     setBusy(true);
     try {
-      const response = await fetch("/api/runtime/playground", {
+      const response = await fetch(runPath ?? "/api/runtime/playground", {
         method: "POST", cache: "no-store",
         headers: { "Content-Type": "application/json", "X-Typesafe-Api-Key": apiKey },
-        body: JSON.stringify({ manifest: prepared.manifest, inputs: prepared.inputs }),
+        body: JSON.stringify(runPath ? { inputs: prepared.inputs } : { manifest: prepared.manifest, inputs: prepared.inputs }),
       });
       const body: unknown = await response.json();
       if (!response.ok) {

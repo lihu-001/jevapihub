@@ -1,3 +1,4 @@
 import { Builder } from "../../components/builder/builder";
+import { getCurrentUserId } from "../../lib/auth/current-user";
 
-export default function PlaygroundPage() { return <Builder />; }
+export default async function PlaygroundPage() { return <Builder canCloudSave={!!(await getCurrentUserId())} />; }
