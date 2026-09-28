@@ -13,7 +13,118 @@ npm run dev
 
 使用 PostgreSQL 时，先在当前 shell 设置 `DATABASE_URL`，再运行 `npm run db:migrate`。迁移脚本记录文件哈希，拒绝修改已执行的 migration。集成测试使用嵌入式 PostgreSQL，无需本地数据库服务。
 
-运行 `npm run db:seed` 可幂等导入两份官方示例 Manifest（中文文章模板腔评估、自媒体标题评分），并发布为公开精选版本。运行前须先执行 `npm run db:migrate`。
+## Docker Compose 部署
+
+Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启动 Next.js 生产服务。数据库数据保存在 `postgres_data` named volume 中；应用默认只监听宿主机 `127.0.0.1:3000`，适合接入已有的 Nginx、Caddy 或其他 HTTPS 反向代理。
+
+### 前置条件
+
+- Docker Engine；
+- Docker Compose Plugin（命令为 `docker compose`）；
+- 服务器至少保留约 2 GB 可用磁盘；2C2G 单机建议配置 1–2 GB swap；
+- 如果与其他服务共用服务器，为 Next.js、PostgreSQL 和其他服务预留内存，避免构建时触发 OOM。
+
+### 首次部署
+
+复制项目到服务器，在项目根目录创建生产环境文件：
+
+```sh
+cp .env.example .env
+```
+
+至少修改以下变量：
+
+```env
+POSTGRES_PASSWORD=替换为数据库密码
+AUTH_SECRET=替换为随机长密钥
+NEXTAUTH_URL=https://你的域名
+APP_URL=https://你的域名
+```
+
+`POSTGRES_DB`、`POSTGRES_USER`、`APP_PORT` 可以使用默认值。暂时不使用 OAuth 时，GitHub 和 Google 的变量可以留空；不使用 AI Builder 时设置：
+
+```env
+AI_BUILDER_ENABLED=false
+```
+
+构建并启动：
+
+```sh
+docker compose up -d --build
+```
+
+Compose 的启动顺序为：
+
+```text
+db（等待 PostgreSQL 健康）
+  → migrate（执行未应用的 SQL migration）
+    → app（启动 Next.js）
+```
+
+检查服务状态和日志：
+
+```sh
+docker compose ps
+docker compose logs -f migrate
+docker compose logs -f app
+```
+
+### 反向代理
+
+应用默认地址为 `http://127.0.0.1:3000`。生产环境应由反向代理负责：
+
+- HTTPS 证书；
+- HTTP 到 HTTPS 跳转；
+- 转发 `Host`、`X-Forwarded-For` 和 `X-Forwarded-Proto`；
+- 支持至少 90 秒的上游读取超时，因为 Jev 请求可能等待外部 API 响应。
+
+如果不使用反向代理，需要自行修改 `docker-compose.yml` 的 `ports`，将本机绑定改为公网监听；不建议直接暴露未加密的生产服务。
+
+### 迁移、种子和更新
+
+`migrate` 是一次性服务。新增 migration 后重新部署即可：
+
+```sh
+docker compose up -d --build
+```
+
+导入官方示例数据：
+
+```sh
+docker compose run --rm migrate node scripts/seed.mjs
+```
+
+更新代码时，Compose 会重新构建应用镜像；已有的数据库 volume 和已执行 migration 会保留。不要修改已经执行过的 migration 文件。
+
+### 停止与备份
+
+停止容器但保留数据库：
+
+```sh
+docker compose down
+```
+
+备份数据库：
+
+```sh
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+```
+
+恢复数据库前先停止应用，然后将备份导入数据库：
+
+```sh
+docker compose stop app
+cat backup.sql | docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
+docker compose start app
+```
+
+删除数据库及其所有数据是破坏性操作：
+
+```sh
+docker compose down -v
+```
+
+生产环境不要提交 `.env`，也不要删除 `postgres_data` volume。
 
 `/admin/interfaces` 供数据库中 `role=admin` 的登录用户管理公开 Interface、精选、隐藏与分类，并查看不含用户正文的运行汇总。普通 OAuth 用户默认为 `user`；管理员角色需由数据库管理员明确设置。
 
