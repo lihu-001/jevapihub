@@ -19,8 +19,8 @@ Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启�
 
 | 文件 | 用途 |
 | --- | --- |
-| `docker-compose.yml` | 默认的最小配置：数据库、迁移、应用，以及必需的环境变量；不传入 OAuth 或 AI Builder 配置，也未设置容器自动重启策略。 |
-| `docker-compose-sample.yml` | 原有完整配置示例：增加 OAuth、AI Builder、运行限制等可选变量，并为数据库和应用设置自动重启策略。 |
+| `docker-compose.yml` | 默认的最小配置：无需 `.env`，自动生成并保存数据库密码，启动数据库、迁移和应用；不启用 OAuth 或 AI Builder。 |
+| `docker-compose-sample.yml` | 完整配置示例：支持 OAuth、AI Builder、运行限制等可选变量，并为数据库和应用设置自动重启策略。 |
 
 ### 前置条件
 
@@ -31,29 +31,24 @@ Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启�
 
 ### 首次部署
 
-复制项目到服务器，在项目根目录创建生产环境文件：
-
-```sh
-cp .env.example .env
-```
-
-两份 Compose 配置都要求在 `.env` 中设置以下变量：
-
-```env
-POSTGRES_PASSWORD=替换为数据库密码
-AUTH_SECRET=替换为随机长密钥
-NEXTAUTH_URL=https://你的域名
-```
-
-`POSTGRES_DB`、`POSTGRES_USER`、`APP_PORT` 可以使用默认值。`NEXTAUTH_URL` 应填写用户实际访问的地址；即使暂不启用登录，当前 Compose 配置也要求设置它。Compose 会根据数据库变量生成容器内的 `DATABASE_URL`，无需填写 `.env` 中的 `DATABASE_URL`。
-
-使用最小配置构建并启动：
+复制项目到服务器，在项目根目录直接构建并启动最小配置，无需创建 `.env`：
 
 ```sh
 docker compose up -d --build
 ```
 
-需要登录和发布时，在 `.env` 中设置 GitHub 或 Google 的 Client ID/Secret，并改用完整示例；启用 AI Builder 时还需要设置 `AI_BUILDER_ENABLED=true` 和 `AI_BUILDER_API_KEY`：
+首次启动会生成随机数据库密码，保存在 `db_credentials` 数据卷；后续启动沿用该密码。`POSTGRES_DB`、`POSTGRES_USER`、`APP_PORT` 可以按需通过环境变量覆盖。也可首次启动前设置 `POSTGRES_PASSWORD` 指定数据库密码；数据库初始化后不能更换密码而不同时修改数据库中的密码。最小配置不启用登录，公开页面与游客 Playground 可用。
+
+如需登录和发布，先创建 `.env` 并设置数据库密码、认证密钥和实际访问地址，再使用完整示例。若从最小配置切换，先从凭据卷中读取已有密码，填入 `.env` 的 `POSTGRES_PASSWORD`（不能重新生成）；两份配置使用同一 `postgres_data` 数据卷。
+
+```sh
+docker compose run --rm --no-deps --entrypoint cat db-credentials /run/jev-hub-db/password
+cp .env.example .env
+```
+
+在 `.env` 中设置 `POSTGRES_PASSWORD`、`AUTH_SECRET`、`NEXTAUTH_URL`；填写 GitHub 或 Google 的 Client ID/Secret 后启动完整示例。`NEXTAUTH_URL` 应为用户实际访问的地址。Compose 根据数据库变量生成容器内的 `DATABASE_URL`，无需填写 `.env` 中的 `DATABASE_URL`。
+
+启用 AI Builder 时还需要设置 `AI_BUILDER_ENABLED=true` 和 `AI_BUILDER_API_KEY`。使用完整示例启动：
 
 ```sh
 docker compose -f docker-compose-sample.yml up -d --build
@@ -64,7 +59,7 @@ docker compose -f docker-compose-sample.yml up -d --build
 Compose 的启动顺序为：
 
 ```text
-db（等待 PostgreSQL 健康）
+db-credentials（生成或读取数据库密码）→ db（等待 PostgreSQL 健康）
   → migrate（执行未应用的 SQL migration）
     → app（启动 Next.js）
 ```
@@ -102,7 +97,7 @@ docker compose up -d --build
 docker compose run --rm migrate node scripts/seed.mjs
 ```
 
-更新代码时，Compose 会重新构建应用镜像；已有的数据库 volume、已执行 migration 和已导入的接口都会保留。切换最小版与完整示例也不会清空同一 Compose 项目的数据库数据。不要修改已经执行过的 migration 文件。
+更新代码时，Compose 会重新构建应用镜像；已有的数据库 volume、已执行 migration 和已导入的接口都会保留。切换最小版与完整示例时须使用相同的数据库密码和数据库名，否则应用无法连接已有数据。不要修改已经执行过的 migration 文件。
 
 ### 停止与备份
 
@@ -132,7 +127,7 @@ docker compose start app
 docker compose down -v
 ```
 
-生产环境不要提交 `.env`，也不要删除 `postgres_data` volume。
+生产环境不要提交 `.env`，也不要删除 `postgres_data` 或 `db_credentials` volume；删除凭据卷后，最小配置会重新生成密码，无法连接原数据库。
 
 `/admin/interfaces` 供数据库中 `role=admin` 的登录用户管理公开 Interface、精选、隐藏与分类，并查看不含用户正文的运行汇总。普通 OAuth 用户默认为 `user`；管理员角色需由数据库管理员明确设置。
 
