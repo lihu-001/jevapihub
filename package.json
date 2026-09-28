@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/generate-manifest-validator.mjs",
     "build": "next build",
+    "schema:generate": "node scripts/generate-manifest-validator.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "node scripts/seed.mjs",
     "typecheck": "tsc --noEmit",

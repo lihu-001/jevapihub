@@ -13,6 +13,8 @@ npm run dev
 
 使用 PostgreSQL 时，先在当前 shell 设置 `DATABASE_URL`，再运行 `npm run db:migrate`。迁移脚本记录文件哈希，拒绝修改已执行的 migration。集成测试使用嵌入式 PostgreSQL，无需本地数据库服务。
 
+Manifest 校验器由 `jev-interface-manifest.schema.json` 预编译生成，浏览器端无需动态执行代码；修改 Schema 后运行 `npm run schema:generate`，提交更新后的 `src/lib/manifest/schema.generated.js`。`npm run build` 也会自动重新生成。
+
 ## Docker Compose 部署
 
 Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启动 Next.js 生产服务。两份配置都使用 `postgres_data` 数据卷保存数据库，并默认只在宿主机 `127.0.0.1:3000` 提供应用服务，适合接入 Nginx、Caddy 等 HTTPS 反向代理。
