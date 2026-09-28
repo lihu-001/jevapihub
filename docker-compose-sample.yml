@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-jev_hub}
       POSTGRES_USER: ${POSTGRES_USER:-jev_hub}
@@ -13,20 +14,40 @@ services:
       timeout: 5s
 
   migrate:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-jev_hub}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jev_hub}
     depends_on:
       db:
         condition: service_healthy
     command: ["node", "scripts/migrate.mjs"]
+    restart: "no"
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-jev_hub}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-jev_hub}
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
       NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      RUNTIME_MAX_BODY_BYTES: ${RUNTIME_MAX_BODY_BYTES:-1048576}
+      RUNTIME_MAX_QUESTIONS: ${RUNTIME_MAX_QUESTIONS:-50}
+      RUNTIME_RATE_LIMIT_GUEST: ${RUNTIME_RATE_LIMIT_GUEST:-60}
+      RUNTIME_RATE_LIMIT_USER: ${RUNTIME_RATE_LIMIT_USER:-120}
+      AI_BUILDER_ENABLED: ${AI_BUILDER_ENABLED:-false}
+      AI_BUILDER_API_KEY: ${AI_BUILDER_API_KEY:-}
+      AI_BUILDER_MODEL: ${AI_BUILDER_MODEL:-gpt-4.1-mini}
+      AI_BUILDER_DAILY_LIMIT: ${AI_BUILDER_DAILY_LIMIT:-10}
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     depends_on:

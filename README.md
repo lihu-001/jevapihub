@@ -15,7 +15,12 @@ npm run dev
 
 ## Docker Compose 部署
 
-Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启动 Next.js 生产服务。数据库数据保存在 `postgres_data` named volume 中；应用默认只监听宿主机 `127.0.0.1:3000`，适合接入已有的 Nginx、Caddy 或其他 HTTPS 反向代理。
+Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启动 Next.js 生产服务。两份配置都使用 `postgres_data` 数据卷保存数据库，并默认只在宿主机 `127.0.0.1:3000` 提供应用服务，适合接入 Nginx、Caddy 等 HTTPS 反向代理。
+
+| 文件 | 用途 |
+| --- | --- |
+| `docker-compose.yml` | 默认的最小配置：数据库、迁移、应用，以及必需的环境变量；不传入 OAuth 或 AI Builder 配置，也未设置容器自动重启策略。 |
+| `docker-compose-sample.yml` | 原有完整配置示例：增加 OAuth、AI Builder、运行限制等可选变量，并为数据库和应用设置自动重启策略。 |
 
 ### 前置条件
 
@@ -32,26 +37,29 @@ Compose 适合单机部署：运行 PostgreSQL、执行数据库迁移，再启�
 cp .env.example .env
 ```
 
-至少修改以下变量：
+两份 Compose 配置都要求在 `.env` 中设置以下变量：
 
 ```env
 POSTGRES_PASSWORD=替换为数据库密码
 AUTH_SECRET=替换为随机长密钥
 NEXTAUTH_URL=https://你的域名
-APP_URL=https://你的域名
 ```
 
-`POSTGRES_DB`、`POSTGRES_USER`、`APP_PORT` 可以使用默认值。暂时不使用 OAuth 时，GitHub 和 Google 的变量可以留空；不使用 AI Builder 时设置：
+`POSTGRES_DB`、`POSTGRES_USER`、`APP_PORT` 可以使用默认值。`NEXTAUTH_URL` 应填写用户实际访问的地址；即使暂不启用登录，当前 Compose 配置也要求设置它。Compose 会根据数据库变量生成容器内的 `DATABASE_URL`，无需填写 `.env` 中的 `DATABASE_URL`。
 
-```env
-AI_BUILDER_ENABLED=false
-```
-
-构建并启动：
+使用最小配置构建并启动：
 
 ```sh
 docker compose up -d --build
 ```
+
+需要登录和发布时，在 `.env` 中设置 GitHub 或 Google 的 Client ID/Secret，并改用完整示例；启用 AI Builder 时还需要设置 `AI_BUILDER_ENABLED=true` 和 `AI_BUILDER_API_KEY`：
+
+```sh
+docker compose -f docker-compose-sample.yml up -d --build
+```
+
+完整示例还可在 `.env` 中设置 `APP_URL`、运行限制等可选变量；不使用 AI Builder 时保持 `AI_BUILDER_ENABLED=false`。下文命令以默认的最小配置为例；使用完整示例时，每条命令都在 `docker compose` 后加上 `-f docker-compose-sample.yml`，例如 `docker compose -f docker-compose-sample.yml ps`。
 
 Compose 的启动顺序为：
 
@@ -78,7 +86,7 @@ docker compose logs -f app
 - 转发 `Host`、`X-Forwarded-For` 和 `X-Forwarded-Proto`；
 - 支持至少 90 秒的上游读取超时，因为 Jev 请求可能等待外部 API 响应。
 
-如果不使用反向代理，需要自行修改 `docker-compose.yml` 的 `ports`，将本机绑定改为公网监听；不建议直接暴露未加密的生产服务。
+如果不使用反向代理，需要自行修改所用 Compose 文件的 `ports`，将本机绑定改为公网监听；不建议直接暴露未加密的生产服务。
 
 ### 迁移、种子和更新
 
@@ -88,13 +96,13 @@ docker compose logs -f app
 docker compose up -d --build
 ```
 
-导入官方示例数据：
+需要时手动导入“中文文章模板腔评估”和“自媒体标题评分”两个官方示例（部署和迁移不会自动导入）：
 
 ```sh
 docker compose run --rm migrate node scripts/seed.mjs
 ```
 
-更新代码时，Compose 会重新构建应用镜像；已有的数据库 volume 和已执行 migration 会保留。不要修改已经执行过的 migration 文件。
+更新代码时，Compose 会重新构建应用镜像；已有的数据库 volume、已执行 migration 和已导入的接口都会保留。切换最小版与完整示例也不会清空同一 Compose 项目的数据库数据。不要修改已经执行过的 migration 文件。
 
 ### 停止与备份
 
