@@ -270,6 +270,7 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
           : <Link className="button button-small" href="/login">登录后云端保存</Link>}
         {activeCloudId && <><button className="button button-small button-primary" type="button" onClick={openPublish}>发布版本</button>
           <Link className="button button-small" href={"/me/interfaces/" + activeCloudId}>版本历史</Link></>}
+        <button className="button button-small builder-key-button" type="button" onClick={() => setKeyOpen(true)}>{apiKey ? "更换 API Key" : "设置 API Key"}</button>
       </div>
     </header>
     {publishOpen && <div className="publish-panel" role="group" aria-label="发布设置"><h2>发布新版本</h2>

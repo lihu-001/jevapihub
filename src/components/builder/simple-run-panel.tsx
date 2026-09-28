@@ -7,7 +7,6 @@ import { ManifestValidationError } from "../../lib/manifest/validate";
 import type { WeightedResult } from "../../lib/postprocess/weighted-score";
 import type { TypeSafeRequest } from "../../lib/typesafe/client";
 import { parseTypeSafeResponse, type TypeSafeResponse } from "../../lib/typesafe/response";
-import { RunAccess } from "../credentials/run-access";
 import { ResultView } from "../results/result-view";
 
 type Props = { manifest: Manifest; stateText: string; questionError: string; apiKey: string; onOpenKey: () => void; onOpenJsonDebug?: () => void; professionalJson?: string };
@@ -73,7 +72,7 @@ export function SimpleRunPanel({ manifest, stateText, questionError, apiKey, onO
 
   return <div>
     <div className="panel-title"><h2 id="run-title">预览与运行</h2><span>{professionalJson === undefined ? "03" : "02"}</span></div>
-    <RunAccess configured={!!apiKey} onOpenKey={onOpenKey} />
+    <div className="run-access"><p>API Key 仅用于当前请求；运行不会单独保存输入或原始答案。</p></div>
     <button className="button button-primary run-button" type="button" disabled={busy} aria-busy={busy} onClick={run}>{busy ? "运行中…" : "运行"}</button>
     {error && <p className="error" role="alert">{error}</p>}
     {!output && !error && <p className="run-empty">点击运行后，在这里查看结果。</p>}

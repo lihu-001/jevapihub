@@ -49,6 +49,11 @@ test("三栏 Builder 使用 State 和 Questions 运行并查看完整结果", as
   departmentValue.criteria["技术"] = "技术集成问题";
   await department.fill(JSON.stringify(departmentValue, null, 2));
   await openTab(page, "结果");
+  await expect(page.locator(".builder-header").getByRole("button", { name: "设置 API Key" })).toBeVisible();
+  await expect(page.locator(".workspace-panel").getByRole("button", { name: "设置 API Key" })).toHaveCount(0);
+  await page.getByRole("button", { name: "设置 API Key" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "设置 API Key" }).click();
   await page.getByLabel("你的 API Key").fill("TEST_KEY");
   await page.getByRole("button", { name: "完成" }).click();
