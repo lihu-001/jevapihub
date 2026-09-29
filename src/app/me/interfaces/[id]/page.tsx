@@ -16,7 +16,7 @@ export default async function InterfaceHistoryPage({ params }: { params: Promise
   const versions = await service().listVersions(id, userId);
   return <main className="content-page"><nav><Link href="/me/interfaces">← 我的 Interface</Link></nav>
       <span className="eyebrow">VERSION HISTORY</span><h1>{project.interface.name}</h1>
-      <p className="muted">Draft 可继续编辑；已发布的每个版本都是独立快照。</p>
+      <p className="muted">Draft 可继续编辑；只有管理员能发布 Hub 版本。历史版本是独立快照。</p>
       <Link className="button button-primary" href={`/builder/${id}`}>编辑 Draft</Link>
       <Link className="button" href={`/me/interfaces/${id}/stats`}>查看运行统计</Link>
       <div className="project-list">{versions.map((version) => <article className="project-row" key={version.id}>

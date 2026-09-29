@@ -37,40 +37,40 @@ describe("Cloud Interface service", () => {
     try {
       const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
       const [other] = await db.insert(schema.users).values({ name: "Other" }).returning();
+      const [admin] = await db.insert(schema.users).values({ name: "Admin", role: "admin" }).returning();
       const service = createInterfaceService(db);
-      const project = await service.create(owner.id, manifest, true);
-      expect((await service.read(project.id, owner.id)).aiGenerated).toBe(true);
-      await expect(service.read(project.id, other.id)).rejects.toMatchObject({ status: 404 });
-      await expect(service.saveDraft(project.id, other.id, manifest)).rejects.toMatchObject({ status: 404 });
-      const v1 = await service.publish(project.id, owner.id, "public");
+      const project = await service.create(admin.id, manifest, true);
+      expect((await service.read(project.id, admin.id)).aiGenerated).toBe(true);
+      await expect(service.read(project.id, owner.id)).rejects.toMatchObject({ status: 404 });
+      await expect(service.saveDraft(project.id, owner.id, manifest)).rejects.toMatchObject({ status: 404 });
+      const v1 = await service.publish(project.id, admin.id, "public");
+      await expect(service.publish(project.id, owner.id, "public")).rejects.toMatchObject({ status: 403 });
       expect(v1.versionNumber).toBe(1);
       const changed = structuredClone(manifest);
       changed.metadata.name = "Updated draft";
       changed.metadata.slug = "updated-draft";
       changed.metadata.description = "Unpublished description";
       changed.questions.truth.instructions = "Different question";
-      await service.saveDraft(project.id, owner.id, changed);
-      expect((await service.read(project.id, owner.id)).aiGenerated).toBe(false);
+      await service.saveDraft(project.id, admin.id, changed);
+      expect((await service.read(project.id, admin.id)).aiGenerated).toBe(false);
       const publicRead = await service.read(project.id, other.id);
-      expect(publicRead.interface.name).toBe("Demo");
       expect(publicRead.interface.slug).toBe("demo");
       expect(publicRead.interface.description).toBe("");
       expect(publicRead.manifest?.questions.truth.instructions).toBe("Is it true?");
       expect((await createHubService(db).list({ search: "Updated draft" }))).toHaveLength(0);
       expect((await createHubService(db).list())[0].slug).toBe("demo");
-      expect((await createHubService(db).detail(owner.id, "demo", other.id)).interface.name).toBe("Demo");
-      await expect(createHubService(db).detail(owner.id, "updated-draft", other.id)).rejects.toMatchObject({ status: 404 });
-      const original = await service.getVersion(project.id, v1.id, other.id);
-      expect(original.version.manifestJson.questions.truth.instructions).toBe("Is it true?");
-      const v2 = await service.publish(project.id, owner.id, "private");
+      expect((await createHubService(db).detail(admin.id, "demo", other.id)).interface.name).toBe("Demo");
+      await expect(createHubService(db).detail(admin.id, "updated-draft", other.id)).rejects.toMatchObject({ status: 404 });
+      expect((await service.getVersion(project.id, v1.id, admin.id)).version.manifestJson.questions.truth.instructions).toBe("Is it true?");
+      const v2 = await service.publish(project.id, admin.id, "private");
       expect(v2.versionNumber).toBe(2);
-      expect((await service.read(project.id, owner.id)).interface.slug).toBe("updated-draft");
+      expect((await service.read(project.id, admin.id)).interface.slug).toBe("updated-draft");
       expect(v2.manifestJson).toMatchObject({ version: 2 });
       await expect(service.getVersion(project.id, v1.id, other.id)).rejects.toMatchObject({ status: 404 });
-      const history = await service.listVersions(project.id, owner.id);
+      const history = await service.listVersions(project.id, admin.id);
       expect(history.map((version) => version.versionNumber)).toEqual([2, 1]);
       await expect(db.update(schema.interfaceVersions).set({ changelog: "mutated" })).rejects.toThrow();
-      const stillOriginal = await service.getVersion(project.id, v1.id, owner.id);
+      const stillOriginal = await service.getVersion(project.id, v1.id, admin.id);
       expect(stillOriginal.version.changelog).toBeNull();
     } finally { await client.close(); }
   });
@@ -78,15 +78,15 @@ describe("Cloud Interface service", () => {
   it("serves published public/unlisted versions and archives without deleting history", async () => {
     const { client, db } = await database();
     try {
-      const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
+      const [admin] = await db.insert(schema.users).values({ name: "Admin", role: "admin" }).returning();
       const service = createInterfaceService(db);
-      const project = await service.create(owner.id, manifest);
-      const version = await service.publish(project.id, owner.id, "unlisted");
+      const project = await service.create(admin.id, manifest);
+      const version = await service.publish(project.id, admin.id, "unlisted");
       expect((await service.read(project.id, null)).draft).toBe(false);
       expect((await service.getVersion(project.id, version.id, null)).version.versionNumber).toBe(1);
-      await service.archive(project.id, owner.id);
+      await service.archive(project.id, admin.id);
       await expect(service.read(project.id, null)).rejects.toMatchObject({ status: 404 });
-      expect(await service.listVersions(project.id, owner.id)).toHaveLength(1);
+      expect(await service.listVersions(project.id, admin.id)).toHaveLength(1);
     } finally { await client.close(); }
   });
 });

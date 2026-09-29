@@ -41,8 +41,8 @@ function readQuestionDraft(id: string, text: string): Question {
   }).questions[id];
 }
 
-export function Builder({ initialManifest, cloudId, canCloudSave = false, initialVisibility = "private", initialAiGenerated = false }: {
-  initialManifest?: Manifest; cloudId?: string; canCloudSave?: boolean; initialVisibility?: Visibility; initialAiGenerated?: boolean;
+export function Builder({ initialManifest, cloudId, canCloudSave = false, canPublish = false, initialVisibility = "private", initialAiGenerated = false }: {
+  initialManifest?: Manifest; cloudId?: string; canCloudSave?: boolean; canPublish?: boolean; initialVisibility?: Visibility; initialAiGenerated?: boolean;
 }) {
   const router = useRouter();
   const [manifest, setManifest] = useState<Manifest>(() => simplifyManifest(initialManifest ?? createBuilderDefaultManifest()));
@@ -268,12 +268,13 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, initia
         {legacyDraftAvailable && <button className="button button-small" type="button" onClick={restoreLegacyDraft}>恢复旧草稿</button>}
         {canCloudSave ? <button className="button button-small" type="button" onClick={saveCloud}>保存到云端</button>
           : <Link className="button button-small" href="/login">登录后云端保存</Link>}
-        {activeCloudId && <><button className="button button-small button-primary" type="button" onClick={openPublish}>发布版本</button>
+        {activeCloudId && canPublish && <><button className="button button-small button-primary" type="button" onClick={openPublish}>发布版本</button>
           <Link className="button button-small" href={"/me/interfaces/" + activeCloudId}>版本历史</Link></>}
+        {activeCloudId && !canPublish && <Link className="button button-small" href={"/me/interfaces/" + activeCloudId}>我的 Interface</Link>}
         <button className="button button-small builder-key-button" type="button" onClick={() => setKeyOpen(true)}>{apiKey ? "更换 API Key" : "设置 API Key"}</button>
       </div>
     </header>
-    {publishOpen && <div className="publish-panel" role="group" aria-label="发布设置"><h2>发布新版本</h2>
+    {canPublish && publishOpen && <div className="publish-panel" role="group" aria-label="发布设置"><h2>发布新版本</h2>
       <div className="field-row">
         <label className="field"><span>模型</span><select value={publishModel} onChange={(event) => setPublishModel(event.target.value)}>
           <option value="jev-1.13.0">jev-1.13.0 · 固定版本</option><option value="jev-latest">jev-latest · 随上游更新</option>

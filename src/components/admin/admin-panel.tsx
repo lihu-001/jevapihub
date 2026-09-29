@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type Item = { id: string; name: string; slug: string; ownerId: string; ownerName: string | null; category: string;
-  featured: boolean; adminHidden: boolean; updatedAt: Date };
+  status: string; featured: boolean; adminHidden: boolean; updatedAt: Date };
 type Category = { slug: string; name: string; enabled: boolean; sortOrder: number };
 
-export function AdminPanel({ interfaces, categories }: { interfaces: Item[]; categories: Category[] }) {
+export function AdminPanel({ interfaces, categories, adminId }: { interfaces: Item[]; categories: Category[]; adminId: string }) {
   const router = useRouter();
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
@@ -27,10 +27,14 @@ export function AdminPanel({ interfaces, categories }: { interfaces: Item[]; cat
     finally { setBusy(false); }
   }
   return <>
-    <section><h2>公开 Interface 与已隐藏项目</h2><div className="project-list">{interfaces.map((item) => <article className="project-row" key={item.id}>
-      <div><h3>{item.name}</h3><p>{item.adminHidden ? "管理员已隐藏" : item.featured ? "公开 · Featured" : "公开"} · {item.category} · 作者 {item.ownerName || item.ownerId}</p></div>
-      <div className="hub-actions">{!item.adminHidden && <a className="button button-small" href={`/i/${item.ownerId}/${item.slug}`}>查看</a>}
+    <section><h2>Hub Interface 与我的草稿</h2><div className="project-list">{interfaces.map((item) => <article className="project-row" key={item.id}>
+      <div><h3>{item.name}</h3><p>{item.adminHidden ? "管理员已隐藏" : item.status === "draft" ? "草稿" : item.featured ? "公开 · Featured" : "公开"} · {item.category} · 作者 {item.ownerName || item.ownerId}</p></div>
+      <div className="hub-actions">{item.status === "draft" ? <a className="button button-small" href={`/builder/${item.id}`}>编辑并发布</a> : <>
+        {!item.adminHidden && <a className="button button-small" href={`/i/${item.ownerId}/${item.slug}`}>查看</a>}
+        {item.ownerId === adminId && <a className="button button-small" href={`/builder/${item.id}`}>编辑新版本</a>}
+        {!item.adminHidden && <button className="button button-small" type="button" disabled={busy} onClick={() => act(() => send(`/api/admin/interfaces/${item.id}/featured`, "PUT", { featured: !item.featured }))}>{item.featured ? "取消精选" : "设为精选"}</button>}
         <button className="button button-small" type="button" disabled={busy} onClick={() => act(() => send(`/api/admin/interfaces/${item.id}/hidden`, "PUT", { hidden: !item.adminHidden }))}>{item.adminHidden ? "恢复公开" : "隐藏"}</button>
+      </>}
       </div>
     </article>)}</div></section>
     <section><h2>分类</h2><form className="admin-category-form" onSubmit={(event) => { event.preventDefault(); void act(async () => { await send("/api/admin/categories", "POST", { slug, name, enabled, sortOrder }); setSlug(""); setName(""); }); }}>

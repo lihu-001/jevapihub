@@ -97,14 +97,22 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
       }
     },
     async setVisibility(id: string, ownerId: string, visibility: Visibility) {
+      const [publisher] = await db.select({ role: schema.users.role }).from(schema.users).where(eq(schema.users.id, ownerId)).limit(1);
+      if (publisher?.role !== "admin") throw new InterfaceError("FORBIDDEN", 403);
       await requireOwner(id, ownerId);
       await db.update(schema.interfaces).set({ visibility, updatedAt: new Date() }).where(eq(schema.interfaces.id, id));
     },
     async archive(id: string, ownerId: string) {
-      await requireOwner(id, ownerId);
+      const row = await requireOwner(id, ownerId);
+      if (row.status === "published") {
+        const [archiver] = await db.select({ role: schema.users.role }).from(schema.users).where(eq(schema.users.id, ownerId)).limit(1);
+        if (archiver?.role !== "admin") throw new InterfaceError("FORBIDDEN", 403);
+      }
       await db.update(schema.interfaces).set({ status: "archived", visibility: "private", updatedAt: new Date() }).where(eq(schema.interfaces.id, id));
     },
     async publish(id: string, ownerId: string, visibility?: Visibility) {
+      const [publisher] = await db.select({ role: schema.users.role }).from(schema.users).where(eq(schema.users.id, ownerId)).limit(1);
+      if (publisher?.role !== "admin") throw new InterfaceError("FORBIDDEN", 403);
       await requireOwner(id, ownerId);
       return db.transaction(async (tx) => {
         const [row] = await tx.select().from(schema.interfaces).where(eq(schema.interfaces.id, id)).for("update").limit(1);

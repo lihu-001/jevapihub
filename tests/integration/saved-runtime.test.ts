@@ -27,7 +27,7 @@ describe("Saved Runtime route", () => {
       }
       const db = drizzle(client, { schema });
       holder.db = db;
-      const [owner] = await db.insert(schema.users).values({ name: "Builder author" }).returning();
+      const [owner] = await db.insert(schema.users).values({ name: "Builder author", role: "admin" }).returning();
       const draft = createBuilderDefaultManifest();
       draft.questions = { assessment: { type: "noul", instructions: "是否相关？" } };
       draft.resultView.order = ["assessment"];
@@ -61,7 +61,7 @@ describe("Saved Runtime route", () => {
       await client.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
       const db = drizzle(client, { schema });
       holder.db = db;
-      const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
+      const [owner] = await db.insert(schema.users).values({ name: "Owner", role: "admin" }).returning();
       const service = createInterfaceService(db);
       const project = await service.create(owner.id, manifest);
       const version = await service.publish(project.id, owner.id, "public");

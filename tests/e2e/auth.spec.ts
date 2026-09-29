@@ -13,8 +13,6 @@ test("游客可浏览登录页，但云端操作需要登录", async ({ page }) 
   await page.goto("/builder/new");
   await expect(page.getByRole("button", { name: "AI Builder" })).toHaveCount(0);
   const sampleId = "00000000-0000-4000-8000-000000000000";
-  expect((await page.request.post(`/api/interfaces/${sampleId}/star`)).status()).toBe(401);
-  expect((await page.request.post(`/api/interfaces/${sampleId}/fork`, { data: {} })).status()).toBe(401);
   expect((await page.request.put(`/api/admin/interfaces/${sampleId}/hidden`, { data: { hidden: true } })).status()).toBe(401);
 });
 

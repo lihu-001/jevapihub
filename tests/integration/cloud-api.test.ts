@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import * as schema from "../../src/db/schema";
 import { manifest } from "../fixture";
@@ -38,6 +39,9 @@ describe("Cloud HTTP API", () => {
       const created = await create(request("/api/interfaces", "POST", { manifest }));
       expect(created.status).toBe(201);
       const project = (await created.json() as { interface: { id: string } }).interface;
+      expect((await publish(request(`/api/interfaces/${project.id}/publish`, "POST", { visibility: "public" }), { params: Promise.resolve({ id: project.id }) })).status).toBe(403);
+      expect((await patch(request(`/api/interfaces/${project.id}`, "PATCH", { visibility: "public" }), { params: Promise.resolve({ id: project.id }) })).status).toBe(403);
+      await db.update(schema.users).set({ role: "admin" }).where(eq(schema.users.id, owner.id));
       const context = { params: Promise.resolve({ id: project.id }) };
       const first = await publish(request(`/api/interfaces/${project.id}/publish`, "POST", { visibility: "public" }), context);
       const v1 = (await first.json() as { version: { id: string; versionNumber: number } }).version;
@@ -53,7 +57,7 @@ describe("Cloud HTTP API", () => {
       holder.viewer = other.id;
       expect((await getVersion(new Request("http://localhost/version"), versionContext)).status).toBe(404);
       expect((await getInterface(new Request("http://localhost/interface"), context)).status).toBe(404);
-      expect((await patch(request("/api/interfaces/id", "PATCH", { visibility: "public" }), context)).status).toBe(404);
+      expect((await patch(request(`/api/interfaces/${project.id}`, "PATCH", { visibility: "public" }), context)).status).toBe(403);
     } finally { holder.viewer = null; holder.db = null; await client.close(); }
   });
 });

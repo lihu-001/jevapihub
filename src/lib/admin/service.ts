@@ -21,9 +21,10 @@ export function createAdminService<T extends PgQueryResultHKT>(db: Db<T>) {
       await requireAdmin(adminId);
       return db.select({ id: schema.interfaces.id, name: schema.interfaces.name, slug: schema.interfaces.slug,
         ownerId: schema.interfaces.ownerId, ownerName: schema.users.name, category: schema.interfaces.category,
-        featured: schema.interfaces.featured, adminHidden: schema.interfaces.adminHidden, updatedAt: schema.interfaces.updatedAt,
+        status: schema.interfaces.status, featured: schema.interfaces.featured, adminHidden: schema.interfaces.adminHidden, updatedAt: schema.interfaces.updatedAt,
       }).from(schema.interfaces).innerJoin(schema.users, eq(schema.users.id, schema.interfaces.ownerId))
-        .where(or(and(eq(schema.interfaces.status, "published"), eq(schema.interfaces.visibility, "public")), eq(schema.interfaces.adminHidden, true)))
+        .where(or(and(eq(schema.interfaces.ownerId, adminId), eq(schema.interfaces.status, "draft")),
+          and(eq(schema.interfaces.status, "published"), eq(schema.interfaces.visibility, "public")), eq(schema.interfaces.adminHidden, true)))
         .orderBy(desc(schema.interfaces.updatedAt)).limit(100);
     },
     async overview(adminId: string) {

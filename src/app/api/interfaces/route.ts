@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const filtersSchema = z.object({
   search: z.string().max(120).optional(), category: z.string().max(64).optional(), tag: z.string().max(64).optional(),
-  language: z.string().max(32).optional(), sort: z.enum(["latest", "runs", "stars", "featured"]).optional(),
+  language: z.string().max(32).optional(), sort: z.enum(["latest", "runs", "featured"]).optional(),
   featured: z.enum(["true", "false"]).optional(), page: z.coerce.number().int().min(1).max(1000).optional(),
 });
 

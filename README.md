@@ -152,10 +152,10 @@ npm run build
 
 需要真实数据库的云端浏览器闭环测试使用**独立、可丢弃**的 PostgreSQL 测试库：设置 `E2E_DATABASE_URL`，对该库执行 `npm run db:migrate`（此命令读取 `DATABASE_URL`，请将其临时指向同一测试库），然后运行 `npm run test:e2e`。测试会在库中创建用户和不可变版本，不会清理这些记录；未设置 `E2E_DATABASE_URL` 时该组用例自动跳过。此测试使用签名测试会话验证云端流程；GitHub/Google 的真实 OAuth 回调仍需另行配置并验收。
 
-游客可打开 `/builder/new` 或 `/playground` 创建并运行 Interface，也可在本机保存草稿。登录用户可在 `/me/interfaces` 管理云端 Draft、发布不可变版本和查看历史。`POST /api/runtime/playground` 将请求转给固定的 TypeSafe System One 端点；Saved Runtime 从数据库加载版本 Manifest，只接受 `inputs`。TypeSafe API Key 默认只留在页面内存；勾选会话记住后才写入 `sessionStorage`。数据库没有 Key、state 或 raw answer 字段。
+游客可打开 `/builder/new` 或 `/playground` 创建并运行 Interface，也可在本机保存草稿。普通用户登录后可在 `/me/interfaces` 管理云端 Draft，但不能发布到 Hub。管理员在 `/admin/interfaces` 管理自己的 Hub Interface 并发布不可变版本。`POST /api/runtime/playground` 将请求转给固定的 TypeSafe System One 端点；Saved Runtime 从数据库加载版本 Manifest，只接受 `inputs`。TypeSafe API Key 默认只留在页面内存；勾选会话记住后才写入 `sessionStorage`。数据库没有 Key、state 或 raw answer 字段。
 
 Builder 提供基础模式和 JSON 调试。基础模式分为 State 示例、Questions、预览与运行三栏；默认载入 Stripe 支付集成求助示例。State 和每个问题的 JSON 均可编辑，Questions 可添加 Noul、Choice、Score。保存或发布时，Builder 将 State 示例转换为一个可填写的 `content` 输入；Hub 访客可以替换示例内容运行同一版本的 Questions。发布面板展示 Hub 输入表单预览。运行区与 Hub 使用相同的 API Key 入口、答案和响应详情展示；基础模式的请求详情为只读，点击“在 JSON 调试中编辑”可修改请求。旧版本机草稿可通过“恢复旧草稿”手动载入。已有的不含输入字段的发布版本保持不可变，在 Hub 中会标明它使用固定 State；作者需发布新版本才能开放输入。
 
-公共 Hub 位于 `/hub`。公开版本支持搜索、筛选、排序、试运行和 Star；登录用户可以 Fork 指定版本到自己的 Draft。Unlisted 版本可通过详情链接访问，但不会进入公共搜索；Private 版本只有作者可访问。管理员可在详情页设置 Featured。保存版本的成功运行只记录版本 ID、模型、token 数与耗时等元数据，用于运行次数统计。
+公共 Hub 位于 `/hub`。游客和普通用户都可以浏览、筛选并试运行管理员发布的公开 Interface；不提供收藏或 Fork。普通用户登录后只能在 `/me/interfaces` 管理自己的数据库 Draft，不能将 Draft 发布到 Hub。管理员通过 `/admin/interfaces` 创建、编辑和发布 Hub Interface，设置 Featured、隐藏项目、管理分类并查看汇总统计。Unlisted 版本可通过详情链接访问，但不会进入公共搜索；Private 版本只有管理员作者可访问。保存版本的成功运行只记录版本 ID、模型、token 数与耗时等元数据，用于运行次数统计。
 
 已有的 Manifest JSON、Python、TypeScript 和 cURL 生成接口仍可供其他流程使用；简化后的 Builder 页面不再提供导入、导出或测试集入口。作者可在 Interface 版本历史页查看总运行、成功/失败、耗时、token 和最近 30 天的统计。

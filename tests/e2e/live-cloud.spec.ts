@@ -14,7 +14,7 @@ async function signedContext(browser: Browser, userId: string, name: string): Pr
   return context;
 }
 
-test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 Fork", async ({ browser }) => {
+test("管理员发布 v1/v2，游客和普通用户只可查看运行 Hub", async ({ browser }) => {
   if (!DATABASE_URL) return;
   const database = new pg.Client({ connectionString: DATABASE_URL });
   await database.connect();
@@ -22,7 +22,7 @@ test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 F
   let readerId: string;
   try {
     const nonce = randomUUID();
-    const author = await database.query<{ id: string }>("INSERT INTO users(name, email) VALUES ($1, $2) RETURNING id", ["E2E Author", `e2e-author-${nonce}@example.invalid`]);
+    const author = await database.query<{ id: string }>("INSERT INTO users(name, email, role) VALUES ($1, $2, 'admin') RETURNING id", ["E2E Author", `e2e-author-${nonce}@example.invalid`]);
     const reader = await database.query<{ id: string }>("INSERT INTO users(name, email) VALUES ($1, $2) RETURNING id", ["E2E Reader", `e2e-reader-${nonce}@example.invalid`]);
     authorId = author.rows[0].id;
     readerId = reader.rows[0].id;
@@ -90,15 +90,12 @@ test("登录用户发布 v1/v2，访客试运行公共版本，第二位用户 F
 
     const readerPage = await readerContext.newPage();
     await readerPage.goto(`/i/${authorId}/new-interface`);
-    await readerPage.getByRole("button", { name: "Fork 到我的 Draft" }).click();
-    await expect(readerPage).toHaveURL(/\/builder\/[0-9a-f-]+$/);
-    const forkId = new URL(readerPage.url()).pathname.split("/").pop()!;
-    const forkResponse = await readerContext.request.get(`/api/interfaces/${forkId}`);
-    const fork = await forkResponse.json() as { interface: { ownerId: string; forkedFromInterfaceId: string; forkedFromVersionId: string }; manifest: unknown };
-    expect(fork.interface).toMatchObject({ ownerId: readerId, forkedFromInterfaceId: interfaceId, forkedFromVersionId: secondVersion.id });
-    expect(fork.manifest).toBeTruthy();
-    const source = await authorContext.request.get(`/api/interfaces/${interfaceId}/versions/${secondVersion.id}`);
-    expect((await source.json() as { version: { manifestJson: { questions: { is_urgent: { instructions: string } } } } }).version.manifestJson.questions.is_urgent.instructions).toBe("Published v2 instruction");
+    await expect(readerPage.getByRole("heading", { name: "E2E Published Interface" })).toBeVisible();
+    await readerPage.goto("/builder/new");
+    await expect(readerPage.getByRole("button", { name: "保存到云端" })).toBeVisible();
+    await expect(readerPage.getByRole("button", { name: "发布版本" })).toHaveCount(0);
+    const denied = await readerContext.request.post(`/api/interfaces/${interfaceId}/publish`, { data: { visibility: "public" } });
+    expect(denied.status()).toBe(403);
   } finally {
     await authorContext.close(); await readerContext.close(); await guestContext.close();
   }

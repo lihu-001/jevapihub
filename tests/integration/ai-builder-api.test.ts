@@ -37,7 +37,7 @@ describe("AI Builder HTTP API", () => {
       await client.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
       const db = drizzle(client, { schema });
       holder.db = db;
-      const [owner] = await db.insert(schema.users).values({ name: "Owner" }).returning();
+      const [owner] = await db.insert(schema.users).values({ name: "Owner", role: "admin" }).returning();
       const cloud = createInterfaceService(db);
       const project = await cloud.create(owner.id, manifest);
       const version = await cloud.publish(project.id, owner.id, "public");
