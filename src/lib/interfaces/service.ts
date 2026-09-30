@@ -155,5 +155,7 @@ export function createInterfaceService<T extends PgQueryResultHKT>(db: Db<T>) {
 }
 
 function isUniqueViolation(error: unknown): boolean {
-  return !!error && typeof error === "object" && "code" in error && error.code === "23505";
+  if (!error || typeof error !== "object") return false;
+  if ("code" in error && error.code === "23505") return true;
+  return "cause" in error && isUniqueViolation(error.cause);
 }

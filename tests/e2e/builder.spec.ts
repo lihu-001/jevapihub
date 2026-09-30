@@ -21,6 +21,25 @@ function answersFor(questions: Record<string, MockQuestion>) {
   }));
 }
 
+test("本机保存要求标题并保存选填描述", async ({ page }) => {
+  await page.goto("/builder/new");
+  await page.getByRole("button", { name: "保存到本机" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("textbox", { name: "标题（必填）" })).toBeEmpty();
+  await dialog.getByRole("button", { name: "确认保存" }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: "标题（必填）" }).fill("客户请求分类");
+  await dialog.getByRole("textbox", { name: "描述（选填）" }).fill("自动识别所属团队");
+  await dialog.getByRole("button", { name: "确认保存" }).click();
+  await expect(dialog).not.toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("jev-interface-local-draft-v2") ?? "null") as unknown);
+  expect(saved).toMatchObject({ metadata: { name: "客户请求分类", description: "自动识别所属团队" } });
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Interface 名称" })).toHaveValue("客户请求分类");
+  await page.getByRole("button", { name: "保存到本机" }).click();
+  await expect(page.getByRole("dialog").getByRole("textbox", { name: "描述（选填）" })).toHaveValue("自动识别所属团队");
+});
+
 test("三栏 Builder 使用 State 和 Questions 运行并查看完整结果", async ({ page, context }) => {
   const requests: unknown[] = [];
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);

@@ -10,12 +10,12 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const oauthAccounts = pgTable("oauth_accounts", {
-  provider: varchar("provider", { length: 32 }).notNull(),
-  providerAccountId: text("provider_account_id").notNull(),
-  userId: uuid("user_id").notNull().references(() => users.id),
+export const passwordAccounts = pgTable("password_accounts", {
+  userId: uuid("user_id").primaryKey().references(() => users.id),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [primaryKey({ columns: [table.provider, table.providerAccountId] })]);
+});
 
 export const interfaces = pgTable("interfaces", {
   id: uuid("id").primaryKey().defaultRandom(),

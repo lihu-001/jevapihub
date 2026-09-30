@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createBuilderDefaultManifest } from "../../lib/manifest/starter";
 import { prepareBuilderRequest, prepareEditedRequest } from "../../lib/manifest/builder-request";
 import { formatSimpleState, simplifyManifest } from "../../lib/manifest/simple-builder";
@@ -52,6 +52,11 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, canPub
   const [activeCloudId, setActiveCloudId] = useState(cloudId);
   const [visibility, setVisibility] = useState<Visibility>(initialVisibility);
   const [publishOpen, setPublishOpen] = useState(false);
+  const saveDialog = useRef<HTMLDialogElement>(null);
+  const [saveTarget, setSaveTarget] = useState<"local" | "cloud" | null>(null);
+  const [saveTitle, setSaveTitle] = useState("");
+  const [saveDescription, setSaveDescription] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [publishModel, setPublishModel] = useState(manifest.runtime.model);
   const [apiKey, setApiKey] = useState("");
   const [remember, setRemember] = useState(false);
@@ -86,6 +91,23 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, canPub
     }, 0);
     return () => window.clearTimeout(timer);
   }, [cloudId]);
+  useEffect(() => {
+    if (saveTarget && !saveDialog.current?.open) saveDialog.current?.showModal();
+    if (!saveTarget && saveDialog.current?.open) saveDialog.current.close();
+  }, [saveTarget]);
+
+  function openSave(target: "local" | "cloud") {
+    setSaveTitle(manifest.metadata.name === "新建 Interface" && !activeCloudId ? "" : manifest.metadata.name);
+    setSaveDescription(manifest.metadata.description);
+    setSaveError("");
+    setSaveTarget(target);
+  }
+  function closeSave() { setSaveTarget(null); setSaveError(""); }
+  function savedManifest() {
+    const name = saveTitle.trim();
+    if (!name) throw new Error("请填写标题");
+    return parseManifest({ ...currentManifest(), metadata: { ...manifest.metadata, name, description: saveDescription.trim() } });
+  }
 
   function changeKey(value: string) {
     setApiKey(value);
@@ -190,8 +212,13 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, canPub
     setRevision((current) => current + 1);
   }
   function saveLocal() {
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(currentManifest())); setStatus("已保存到本机浏览器"); }
-    catch (error) { setStatus(issueMessage(error)); }
+    try {
+      const value = savedManifest();
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(value));
+      setManifest((current) => ({ ...current, metadata: value.metadata }));
+      closeSave();
+      setStatus("已保存到本机浏览器");
+    } catch (error) { setSaveError(issueMessage(error)); }
   }
   function restoreLegacyDraft() {
     try {
@@ -217,19 +244,24 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, canPub
   }
   async function saveCloud() {
     try {
-      const value = currentManifest();
+      const value = savedManifest();
       if (activeCloudId) {
         await cloudRequest("/api/interfaces/" + activeCloudId + "/draft", "PUT", { manifest: value, aiGenerated: initialAiGenerated });
         setStatus("Draft 已保存到云端");
       } else {
-        const created = await cloudRequest("/api/interfaces", "POST", { manifest: value, aiGenerated: initialAiGenerated });
+        const cloudManifest = value.metadata.slug === "new-interface"
+          ? { ...value, metadata: { ...value.metadata, slug: `new-interface-${crypto.randomUUID()}` } }
+          : value;
+        const created = await cloudRequest("/api/interfaces", "POST", { manifest: cloudManifest, aiGenerated: initialAiGenerated });
         const id = created.interface?.id;
         if (!id) throw new Error("云端创建失败");
         setActiveCloudId(id);
         setStatus("Interface 已创建，Draft 已保存到云端");
         router.replace("/builder/" + id);
       }
-    } catch (error) { setStatus(issueMessage(error)); }
+      setManifest((current) => ({ ...current, metadata: value.metadata }));
+      closeSave();
+    } catch (error) { setSaveError(issueMessage(error)); }
   }
   async function publish() {
     if (!activeCloudId) return;
@@ -264,9 +296,10 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, canPub
       <Link className="brand" href="/">Jev / Interface Hub</Link>
       <input className="name-input" aria-label="Interface 名称" value={manifest.metadata.name} onChange={(event) => setManifest((current) => ({ ...current, metadata: { ...current.metadata, name: event.target.value } }))} />
       <div className="header-actions">
-        <button className="button button-small" type="button" onClick={saveLocal}>保存到本机</button>
+        <Link className="button button-small" href="/hub">前往 Hub</Link>
+        <button className="button button-small" type="button" onClick={() => openSave("local")}>保存到本机</button>
         {legacyDraftAvailable && <button className="button button-small" type="button" onClick={restoreLegacyDraft}>恢复旧草稿</button>}
-        {canCloudSave ? <button className="button button-small" type="button" onClick={saveCloud}>保存到云端</button>
+        {canCloudSave ? <button className="button button-small" type="button" onClick={() => openSave("cloud")}>保存到云端</button>
           : <Link className="button button-small" href="/login">登录后云端保存</Link>}
         {activeCloudId && canPublish && <><button className="button button-small button-primary" type="button" onClick={openPublish}>发布版本</button>
           <Link className="button button-small" href={"/me/interfaces/" + activeCloudId}>版本历史</Link></>}
@@ -274,6 +307,17 @@ export function Builder({ initialManifest, cloudId, canCloudSave = false, canPub
         <button className="button button-small builder-key-button" type="button" onClick={() => setKeyOpen(true)}>{apiKey ? "更换 API Key" : "设置 API Key"}</button>
       </div>
     </header>
+    <dialog ref={saveDialog} className="credential-dialog" onCancel={closeSave} onClose={closeSave} aria-labelledby="save-title">
+      <h2 id="save-title">{saveTarget === "cloud" ? "保存到云端" : "保存到本机"}</h2>
+      <form onSubmit={(event) => { event.preventDefault(); if (saveTarget === "local") saveLocal(); else if (saveTarget === "cloud") void saveCloud(); }}>
+        <div className="stack">
+          <label className="field"><span>标题（必填）</span><input value={saveTitle} onChange={(event) => setSaveTitle(event.target.value)} maxLength={120} required autoFocus /></label>
+          <label className="field"><span>描述（选填）</span><textarea value={saveDescription} onChange={(event) => setSaveDescription(event.target.value)} maxLength={2000} /></label>
+        </div>
+        {saveError && <p className="error" role="alert">{saveError}</p>}
+        <div className="dialog-actions"><button className="button" type="button" onClick={closeSave}>取消</button><button className="button button-primary" type="submit">确认保存</button></div>
+      </form>
+    </dialog>
     {canPublish && publishOpen && <div className="publish-panel" role="group" aria-label="发布设置"><h2>发布新版本</h2>
       <div className="field-row">
         <label className="field"><span>模型</span><select value={publishModel} onChange={(event) => setPublishModel(event.target.value)}>

@@ -3,7 +3,6 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../src/db/schema";
-import { ensureOAuthUser, findOAuthUser } from "../../src/lib/auth/accounts";
 import { createInterfaceService } from "../../src/lib/interfaces/service";
 import { createHubService } from "../../src/lib/hub/service";
 import { manifest } from "../fixture";
@@ -15,22 +14,11 @@ async function database() {
   await client.exec(readFileSync("src/db/migrations/0002_ai_builder.sql", "utf8"));
   await client.exec(readFileSync("src/db/migrations/0003_interface_hub.sql", "utf8"));
   await client.exec(readFileSync("src/db/migrations/0004_admin_categories.sql", "utf8"));
+  await client.exec(readFileSync("src/db/migrations/0005_password_accounts.sql", "utf8"));
   return { client, db: drizzle(client, { schema }) };
 }
 
 describe("Cloud Interface service", () => {
-  it("links OAuth identity without linking another provider by email", async () => {
-    const { client, db } = await database();
-    try {
-      const id = await ensureOAuthUser(db, "github", "123", { name: "Alice", email: "alice@example.com" });
-      expect(id).toBeTruthy();
-      expect(await ensureOAuthUser(db, "github", "123", { name: "Changed" })).toBe(id);
-      expect(await findOAuthUser(db, "github", "123")).toBe(id);
-      expect(await ensureOAuthUser(db, "google", "other", { email: "alice@example.com" })).toBeNull();
-      const rows = await db.select().from(schema.oauthAccounts);
-      expect(rows).toHaveLength(1);
-    } finally { await client.close(); }
-  });
 
   it("keeps private Drafts owner-only and published versions immutable", async () => {
     const { client, db } = await database();

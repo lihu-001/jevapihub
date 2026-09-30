@@ -35,13 +35,23 @@ test("管理员发布 v1/v2，游客和普通用户只可查看运行 Hub", asyn
     const authorPage = await authorContext.newPage();
     await authorPage.goto("/builder/new");
     await expect(authorPage.getByRole("button", { name: "保存到云端" })).toBeVisible();
-    await authorPage.getByRole("textbox", { name: "Interface 名称" }).fill("E2E Published Interface");
     await authorPage.getByRole("textbox", { name: "State 内容" }).fill("guest content");
-    const createdResponse = authorPage.waitForResponse((response) => response.url().endsWith("/api/interfaces") && response.request().method() === "POST");
     await authorPage.getByRole("button", { name: "保存到云端" }).click();
-    const created = await (await createdResponse).json() as { interface: { id: string } };
-    const interfaceId = created.interface.id;
+    const dialog = authorPage.getByRole("dialog");
+    await expect(dialog.getByRole("textbox", { name: "标题（必填）" })).toBeEmpty();
+    await dialog.getByRole("button", { name: "确认保存" }).click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("textbox", { name: "标题（必填）" }).fill("E2E Published Interface");
+    await dialog.getByRole("textbox", { name: "描述（选填）" }).fill("E2E description");
+    const createdResponse = authorPage.waitForResponse((response) => response.url().endsWith("/api/interfaces") && response.request().method() === "POST");
+    await dialog.getByRole("button", { name: "确认保存" }).click();
+    const created = await (await createdResponse).json();
+    expect(created).toHaveProperty("interface.id");
+    const interfaceId = created.interface.id as string;
     await expect(authorPage).toHaveURL(new RegExp(`/builder/${interfaceId}$`));
+    await expect(dialog).not.toBeVisible();
+    const draft = await authorContext.request.get(`/api/interfaces/${interfaceId}`);
+    await expect(await draft.json()).toMatchObject({ interface: { name: "E2E Published Interface", description: "E2E description" } });
     await authorPage.getByRole("button", { name: "发布版本" }).click();
     await expect(authorPage.getByRole("heading", { name: "Hub 试运行预览" })).toBeVisible();
     await expect(authorPage.getByRole("textbox", { name: /待分析内容/ })).toHaveValue("guest content");
@@ -76,7 +86,9 @@ test("管理员发布 v1/v2，游客和普通用户只可查看运行 Hub", asyn
         }, usage: { input_tokens: 1, output_tokens: 1 },
       }, metrics: [] }) });
     });
-    await guestPage.goto(`/i/${authorId}/new-interface`);
+    const published = await authorContext.request.get(`/api/interfaces/${interfaceId}`);
+    const { interface: { slug } } = await published.json() as { interface: { slug: string } };
+    await guestPage.goto(`/i/${authorId}/${slug}`);
     await expect(guestPage.getByRole("heading", { name: "E2E Published Interface" })).toBeVisible();
     await expect(guestPage.getByRole("textbox", { name: /待分析内容/ })).toHaveValue("guest content");
     await guestPage.getByRole("textbox", { name: /待分析内容/ }).fill("访客自己的内容");
@@ -89,7 +101,7 @@ test("管理员发布 v1/v2，游客和普通用户只可查看运行 Hub", asyn
     await expect(guestPage.getByRole("button", { name: "设置 API Key" })).toBeVisible();
 
     const readerPage = await readerContext.newPage();
-    await readerPage.goto(`/i/${authorId}/new-interface`);
+    await readerPage.goto(`/i/${authorId}/${slug}`);
     await expect(readerPage.getByRole("heading", { name: "E2E Published Interface" })).toBeVisible();
     await readerPage.goto("/builder/new");
     await expect(readerPage.getByRole("button", { name: "保存到云端" })).toBeVisible();

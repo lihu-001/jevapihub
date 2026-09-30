@@ -8,7 +8,7 @@ describe("Official seed catalog", () => {
   it("publishes two valid immutable Manifest examples and remains idempotent", async () => {
     const client = new PGlite();
     try {
-      for (const name of ["0000_foundation.sql", "0001_oauth_accounts.sql", "0002_ai_builder.sql", "0003_interface_hub.sql", "0004_admin_categories.sql"]) {
+      for (const name of ["0000_foundation.sql", "0001_oauth_accounts.sql", "0002_ai_builder.sql", "0003_interface_hub.sql", "0004_admin_categories.sql", "0005_password_accounts.sql"]) {
         await client.exec(readFileSync(`src/db/migrations/${name}`, "utf8"));
       }
       expect(await seedCatalog(client)).toEqual(["zh-article-template-tone", "creator-headline-score"]);

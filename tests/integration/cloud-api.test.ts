@@ -39,6 +39,9 @@ describe("Cloud HTTP API", () => {
       const created = await create(request("/api/interfaces", "POST", { manifest }));
       expect(created.status).toBe(201);
       const project = (await created.json() as { interface: { id: string } }).interface;
+      const duplicate = await create(request("/api/interfaces", "POST", { manifest }));
+      expect(duplicate.status).toBe(409);
+      expect(await duplicate.json()).toMatchObject({ error: { code: "SLUG_ALREADY_EXISTS" } });
       expect((await publish(request(`/api/interfaces/${project.id}/publish`, "POST", { visibility: "public" }), { params: Promise.resolve({ id: project.id }) })).status).toBe(403);
       expect((await patch(request(`/api/interfaces/${project.id}`, "PATCH", { visibility: "public" }), { params: Promise.resolve({ id: project.id }) })).status).toBe(403);
       await db.update(schema.users).set({ role: "admin" }).where(eq(schema.users.id, owner.id));

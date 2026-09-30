@@ -1,30 +1,34 @@
 import type { NextAuthOptions } from "next-auth";
-import GitHubProvider from "next-auth/providers/github";
-import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { getDatabase } from "../../db/database";
-import { ensureOAuthUser, findOAuthUser } from "./accounts";
+import { findPasswordUser, normalizeEmail, validatePassword } from "./password";
+import { createWindowLimiter } from "../runtime/rate-limit";
 
-const providers: NextAuthOptions["providers"] = [];
-if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
-  providers.push(GitHubProvider({ clientId: process.env.GITHUB_CLIENT_ID, clientSecret: process.env.GITHUB_CLIENT_SECRET }));
-}
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  providers.push(GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET }));
-}
+const allowLogin = createWindowLimiter();
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.AUTH_SECRET,
   session: { strategy: "jwt" },
-  providers,
+  providers: [CredentialsProvider({
+    name: "邮箱和密码",
+    credentials: {
+      email: { label: "邮箱", type: "email" },
+      password: { label: "密码", type: "password" },
+    },
+    async authorize(credentials, request) {
+      const address = (request.headers?.["x-forwarded-for"]?.split(",")[0] || request.headers?.["x-real-ip"] || "unknown").trim().slice(0, 128);
+      if (!allowLogin(address, 10)) return null;
+      const email = normalizeEmail(credentials?.email);
+      const password = validatePassword(credentials?.password);
+      if (!email || !password) return null;
+      const userId = await findPasswordUser(getDatabase(), email, password);
+      return userId ? { id: userId, email } : null;
+    },
+  })],
   pages: { signIn: "/login" },
   callbacks: {
-    async signIn({ user, account }) {
-      if (!account || !["github", "google"].includes(account.provider)) return false;
-      const id = await ensureOAuthUser(getDatabase(), account.provider, account.providerAccountId, user);
-      return id !== null;
-    },
-    async jwt({ token, account }) {
-      if (account) token.userId = await findOAuthUser(getDatabase(), account.provider, account.providerAccountId) ?? undefined;
+    async jwt({ token, user }) {
+      if (user?.id) token.userId = user.id;
       return token;
     },
     async session({ session, token }) {
